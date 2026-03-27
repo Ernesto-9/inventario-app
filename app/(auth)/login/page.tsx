@@ -14,7 +14,7 @@ import { Package } from "lucide-react"
 export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
-  const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,9 +24,10 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
+    const email = `${username.trim()}@inventario.local`
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      setError("Correo o contraseña incorrectos")
+      setError("Usuario o contraseña incorrectos")
       setLoading(false)
     } else {
       router.push("/dashboard")
@@ -49,15 +50,15 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Correo electrónico</Label>
+              <Label htmlFor="username">Usuario</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="correo@empresa.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="username"
+                type="text"
+                placeholder="001"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
-                autoComplete="email"
+                autoComplete="username"
               />
             </div>
             <div className="space-y-2">
