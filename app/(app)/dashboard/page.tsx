@@ -1,9 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertTriangle, ArrowLeftRight, Package, MapPin, Plus, TrendingDown, TrendingUp } from "lucide-react"
+import { AlertTriangle, ArrowLeftRight, Package, Wallet, Plus, TrendingDown, TrendingUp } from "lucide-react"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -13,8 +12,7 @@ export default async function DashboardPage() {
     { data: profile },
     { data: stockTotals },
     { data: recentMovements },
-    { data: locationCount },
-    { data: itemCount },
+    { data: cashFunds },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, role").eq("id", user!.id).single(),
     supabase.from("stock_totals").select("*").order("item_name"),
@@ -23,12 +21,30 @@ export default async function DashboardPage() {
       .select("id, type, quantity, created_at, items(name, unit), origin_location:origin_location_id(name), destination_location:destination_location_id(name)")
       .order("created_at", { ascending: false })
       .limit(8),
-    supabase.from("locations").select("id", { count: "exact" }).eq("is_active", true),
-    supabase.from("items").select("id", { count: "exact" }).eq("is_active", true),
+    supabase.from("cash_funds").select("balance").eq("is_active", true),
   ])
 
   const lowStockItems = stockTotals?.filter(s => s.is_low_stock) ?? []
-  const totalItems = stockTotals?.length ?? 0
+  const cashTotal = cashFunds?.reduce((sum: number, f: { balance: number }) => sum + (f.balance ?? 0), 0) ?? 0
+
+  // Última compra por artículo con stock bajo
+  const lowStockItemIds = lowStockItems.map((i: { item_id: string }) => i.item_id)
+  const { data: lastPurchases } = lowStockItemIds.length > 0
+    ? await supabase
+        .from("movements")
+        .select("item_id, created_at, supplier")
+        .eq("type", "entrada")
+        .in("item_id", lowStockItemIds)
+        .order("created_at", { ascending: false })
+    : { data: [] }
+
+  const lastPurchaseMap = new Map<string, { created_at: string; supplier?: string }>()
+  for (const mov of lastPurchases ?? []) {
+    const m = mov as { item_id: string; created_at: string; supplier?: string }
+    if (!lastPurchaseMap.has(m.item_id)) {
+      lastPurchaseMap.set(m.item_id, { created_at: m.created_at, supplier: m.supplier })
+    }
+  }
 
   const movementTypeConfig = {
     entrada: { label: 'Entrada', icon: TrendingUp, color: 'text-green-600' },
@@ -42,7 +58,7 @@ export default async function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Hola, {profile?.full_name?.split(' ')[0] ?? 'Usuario'}</h1>
+          <h1 className="text-xl font-bold leading-tight">Inmobiliaria y Promotora Courier</h1>
           <p className="text-muted-foreground text-sm capitalize">{profile?.role ?? 'supervisor'}</p>
         </div>
         <Button asChild>
@@ -53,39 +69,29 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Artículos</p>
-            <p className="text-2xl font-bold mt-1">{itemCount?.length ?? 0}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">en catálogo</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Ubicaciones</p>
-            <p className="text-2xl font-bold mt-1">{locationCount?.length ?? 0}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">activas</p>
-          </CardContent>
-        </Card>
-        <Card className={lowStockItems.length > 0 ? "border-yellow-300" : ""}>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Stock bajo</p>
-            <p className={`text-2xl font-bold mt-1 ${lowStockItems.length > 0 ? 'text-yellow-600' : ''}`}>
-              {lowStockItems.length}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">artículos</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Con inventario</p>
-            <p className="text-2xl font-bold mt-1">
-              {stockTotals?.filter(s => s.total_quantity > 0).length ?? 0}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">de {totalItems}</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-3">
+        <Link href="/reports">
+          <Card className={`cursor-pointer hover:shadow-md transition-shadow ${lowStockItems.length > 0 ? "border-yellow-300" : ""}`}>
+            <CardContent className="p-4">
+              <p className="text-xs text-muted-foreground">Stock bajo</p>
+              <p className={`text-2xl font-bold mt-1 ${lowStockItems.length > 0 ? 'text-yellow-600' : ''}`}>
+                {lowStockItems.length}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">artículos</p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/cash">
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <p className="text-xs text-muted-foreground">Caja chica</p>
+              <p className="text-2xl font-bold mt-1">
+                ${cashTotal.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">disponible</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Alertas de stock bajo */}
@@ -98,18 +104,28 @@ export default async function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-2">
-            {lowStockItems.slice(0, 5).map(item => (
-              <Link key={item.item_id} href={`/items/${item.item_id}`} className="flex items-center justify-between py-1.5 hover:bg-yellow-100/50 rounded px-2 -mx-2 transition-colors">
-                <div>
-                  <p className="text-sm font-medium text-yellow-900">{item.item_name}</p>
-                  {item.category_name && <p className="text-xs text-yellow-700">{item.category_name}</p>}
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-yellow-600">{item.total_quantity} {item.unit}</p>
-                  <p className="text-xs text-yellow-700">mín: {item.min_stock}</p>
-                </div>
-              </Link>
-            ))}
+            {lowStockItems.slice(0, 5).map((item: { item_id: string; item_name: string; total_quantity: number; unit: string; min_stock: number }) => {
+              const lastBuy = lastPurchaseMap.get(item.item_id)
+              return (
+                <Link key={item.item_id} href={`/items/${item.item_id}`} className="flex items-center justify-between py-1.5 hover:bg-yellow-100/50 rounded px-2 -mx-2 transition-colors">
+                  <div>
+                    <p className="text-sm font-medium text-yellow-900">{item.item_name}</p>
+                    {lastBuy ? (
+                      <p className="text-xs text-yellow-700">
+                        Última compra: {new Date(lastBuy.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {lastBuy.supplier && ` · ${lastBuy.supplier}`}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-yellow-700">Sin compras registradas</p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-yellow-600">{item.total_quantity} {item.unit}</p>
+                    <p className="text-xs text-yellow-700">mín: {item.min_stock}</p>
+                  </div>
+                </Link>
+              )
+            })}
             {lowStockItems.length > 5 && (
               <Link href="/reports" className="block text-xs text-yellow-700 hover:underline pt-1">
                 +{lowStockItems.length - 5} artículos más →
@@ -124,7 +140,7 @@ export default async function DashboardPage() {
         {[
           { href: '/movements/new', label: 'Nuevo movimiento', icon: ArrowLeftRight },
           { href: '/items/new', label: 'Nuevo artículo', icon: Package },
-          { href: '/locations/new', label: 'Nueva ubicación', icon: MapPin },
+          { href: '/cash', label: 'Caja chica', icon: Wallet },
           { href: '/reports', label: 'Ver reportes', icon: TrendingUp },
         ].map(({ href, label, icon: Icon }) => (
           <Link key={href} href={href}>

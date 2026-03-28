@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation"
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/movements/new", label: "Nuevo movimiento", icon: ArrowLeftRight, highlight: true },
+  { href: "/movements/new", label: "Nuevo movimiento", icon: ArrowLeftRight },
   { href: "/items", label: "Artículos", icon: Package },
   { href: "/locations", label: "Ubicaciones", icon: MapPin },
   { href: "/movements", label: "Historial", icon: BarChart2 },

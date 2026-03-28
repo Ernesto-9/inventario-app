@@ -2,15 +2,15 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Package, MapPin, ArrowLeftRight, BarChart2 } from "lucide-react"
+import { LayoutDashboard, Wallet, Search, ArrowLeftRight, BarChart2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const tabs = [
   { href: "/dashboard", label: "Inicio", icon: LayoutDashboard },
+  { href: "/cash", label: "Caja", icon: Wallet },
+  { href: "/buscar", label: "Buscar", icon: Search },
   { href: "/movements/new", label: "Mover", icon: ArrowLeftRight },
-  { href: "/items", label: "Artículos", icon: Package },
-  { href: "/movements", label: "Historial", icon: BarChart2 },
-  { href: "/locations", label: "Lugares", icon: MapPin },
+  { href: "/reports", label: "Reportes", icon: BarChart2 },
 ]
 
 export function MobileNav() {

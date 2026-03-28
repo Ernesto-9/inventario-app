@@ -22,7 +22,7 @@ export default function NewItemPage() {
   const [error, setError] = useState<string | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [form, setForm] = useState({
-    name: "", description: "", sku: "", unit: "pieza",
+    name: "", variant_info: "", description: "", sku: "", unit: "pieza",
     category_id: "", min_stock: "0",
   })
 
@@ -39,6 +39,7 @@ export default function NewItemPage() {
 
     const { data, error } = await supabase.from("items").insert({
       name: form.name.trim(),
+      variant_info: form.variant_info.trim() || null,
       description: form.description.trim() || null,
       sku: form.sku.trim() || null,
       unit: form.unit,
@@ -75,7 +76,12 @@ export default function NewItemPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Nombre *</Label>
-              <Input id="name" placeholder="Ej: Cemento gris 50kg" value={form.name} onChange={(e) => update('name', e.target.value)} required />
+              <Input id="name" placeholder="Ej: Tornillo" value={form.name} onChange={(e) => update('name', e.target.value)} required />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="variant_info">Especificación <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+              <Input id="variant_info" placeholder="Ej: M6 × 20mm, Acero inoxidable" value={form.variant_info} onChange={(e) => update('variant_info', e.target.value)} />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
