@@ -1,33 +1,53 @@
-import { createClient } from "@/lib/supabase/server"
+"use client"
+
+import { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus, Package, AlertTriangle } from "lucide-react"
+import { Package, AlertTriangle, Search } from "lucide-react"
+import type { StockTotal } from "@/types/database"
 
-export default async function ItemsPage() {
-  const supabase = await createClient()
+export default function StockPage() {
+  const supabase = createClient()
+  const [items, setItems] = useState<StockTotal[]>([])
+  const [search, setSearch] = useState("")
 
-  const { data: items } = await supabase
-    .from("stock_totals")
-    .select("*")
-    .order("item_name")
+  useEffect(() => {
+    supabase.from("stock_totals").select("*").order("item_name").then(({ data }) => {
+      setItems((data as StockTotal[]) ?? [])
+    })
+  }, [supabase])
 
-  const lowStock = items?.filter(i => i.is_low_stock) ?? []
+  const filtered = search
+    ? items.filter(i =>
+        i.item_name.toLowerCase().includes(search.toLowerCase()) ||
+        (i.sku && i.sku.toLowerCase().includes(search.toLowerCase())) ||
+        (i.category_name && i.category_name.toLowerCase().includes(search.toLowerCase()))
+      )
+    : items
+
+  const lowStock = items.filter(i => i.is_low_stock)
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Artículos</h1>
-          <p className="text-muted-foreground text-sm">Catálogo de inventario</p>
-        </div>
-        <Button asChild>
-          <Link href="/items/new"><Plus className="h-4 w-4 mr-1" />Nuevo</Link>
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold">Stock</h1>
+        <p className="text-muted-foreground text-sm">Inventario actual</p>
       </div>
 
-      {lowStock.length > 0 && (
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <Input
+          className="pl-9"
+          placeholder="Buscar por nombre, SKU o categoría..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+
+      {!search && lowStock.length > 0 && (
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 flex items-start gap-3">
           <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
           <div>
@@ -42,7 +62,7 @@ export default async function ItemsPage() {
       )}
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {items?.map((item) => (
+        {filtered.map((item) => (
           <Link key={item.item_id} href={`/items/${item.item_id}`}>
             <Card className={`hover:shadow-md transition-shadow cursor-pointer ${item.is_low_stock ? 'border-yellow-300' : ''}`}>
               <CardContent className="p-4">
@@ -87,13 +107,13 @@ export default async function ItemsPage() {
         ))}
       </div>
 
-      {!items?.length && (
+      {filtered.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <Package className="h-10 w-10 mx-auto mb-3 opacity-30" />
-          <p>No hay artículos en el catálogo.</p>
-          <Button asChild className="mt-4">
-            <Link href="/items/new">Agregar primer artículo</Link>
-          </Button>
+          <p>{search ? 'No se encontraron artículos.' : 'No hay artículos en el inventario.'}</p>
+          {!search && (
+            <p className="text-xs mt-1">Registra una entrada para agregar artículos al inventario.</p>
+          )}
         </div>
       )}
     </div>

@@ -139,7 +139,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {[
           { href: '/movements/new', label: 'Nuevo movimiento', icon: ArrowLeftRight },
-          { href: '/items/new', label: 'Nuevo artículo', icon: Package },
+          { href: '/items', label: 'Ver stock', icon: Package },
           { href: '/cash', label: 'Caja chica', icon: Wallet },
           { href: '/reports', label: 'Ver reportes', icon: TrendingUp },
         ].map(({ href, label, icon: Icon }) => (
