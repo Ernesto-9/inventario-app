@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, FileText, X, Upload, Search, ScanLine, Loader2, Check, Plus } from "lucide-react"
+import { ArrowLeft, FileText, X, Upload, Search, ScanLine, Loader2, Check, Plus, Camera } from "lucide-react"
 import type { Location, Profile, MovementType, AttachmentType } from "@/types/database"
 import { toast } from "@/hooks/use-toast"
 import imageCompression from "browser-image-compression"
@@ -245,6 +245,16 @@ export default function NewMovementPage() {
       setScanError('Error al leer la imagen')
     }
     setScanning(false)
+  }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = Array.from(e.target.files ?? [])
+    for (const file of selectedFiles) {
+      const processedFile = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1920 })
+      const preview = URL.createObjectURL(processedFile)
+      setFiles(prev => [...prev, { file: processedFile, preview, type: 'foto', name: file.name }])
+    }
+    e.target.value = ''
   }
 
   async function handleDocUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -659,10 +669,18 @@ export default function NewMovementPage() {
               )}
 
               <div className="flex gap-2 flex-wrap">
+                <Label htmlFor="photo-upload" className="cursor-pointer">
+                  <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors">
+                    <Camera className="h-4 w-4" />
+                    Foto
+                  </div>
+                  <input id="photo-upload" type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={handlePhotoUpload} />
+                </Label>
+
                 <Label htmlFor="scan-upload" className="cursor-pointer">
                   <div className="flex items-center gap-2 rounded-md border border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-sm text-primary hover:bg-primary/10 transition-colors">
                     <ScanLine className="h-4 w-4" />
-                    Escanear comprobante
+                    Escanear con IA
                   </div>
                   <input id="scan-upload" type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanComprobante} />
                 </Label>
@@ -670,16 +688,12 @@ export default function NewMovementPage() {
                 <Label htmlFor="doc-upload" className="cursor-pointer">
                   <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors">
                     <Upload className="h-4 w-4" />
-                    Subir documento
+                    Documento
                   </div>
                   <input id="doc-upload" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" multiple className="hidden" onChange={handleDocUpload} />
                 </Label>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {form.type === 'entrada'
-                  ? 'Escanear comprobante activa la IA para registrar artículos automáticamente.'
-                  : 'Las fotos se comprimen antes de subirse.'}
-              </p>
+              <p className="text-xs text-muted-foreground">Las fotos se comprimen automáticamente antes de subirse.</p>
             </CardContent>
           </Card>
         )}
