@@ -38,6 +38,7 @@ export interface Item {
   category_id: string | null
   min_stock: number
   photo_url: string | null
+  variant_info: string | null
   is_active: boolean
   created_by: string | null
   created_at: string
@@ -64,6 +65,7 @@ export interface Movement {
   notes: string | null
   unit_cost: number | null
   reference_number: string | null
+  supplier: string | null
   responsible_id: string | null
   created_by: string
   created_at: string
@@ -178,6 +180,7 @@ export interface Database {
           p_unit_cost?: number
           p_reference_number?: string
           p_responsible_id?: string
+          p_supplier?: string
         }
         Returns: string
       }
