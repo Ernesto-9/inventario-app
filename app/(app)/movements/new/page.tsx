@@ -96,6 +96,14 @@ export default function NewMovementPage() {
   const [currentUserId, setCurrentUserId] = useState("")
   const [isAdmin, setIsAdmin] = useState(false)
 
+  const [suppliers, setSuppliers] = useState<string[]>([])
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false)
+
+  const [showNewLocationDialog, setShowNewLocationDialog] = useState(false)
+  const [newLocationTarget, setNewLocationTarget] = useState<'origin' | 'destination' | null>(null)
+  const [newLocationName, setNewLocationName] = useState('')
+  const [newLocationLoading, setNewLocationLoading] = useState(false)
+
   const [itemRows, setItemRows] = useState<ItemRow[]>([makeRow()])
   const [showNewItemsDialog, setShowNewItemsDialog] = useState(false)
 
@@ -119,15 +127,20 @@ export default function NewMovementPage() {
   const isMultiType = form.type === 'entrada' || form.type === 'salida'
 
   const loadData = useCallback(async () => {
-    const [itemsRes, locationsRes, profilesRes, userRes] = await Promise.all([
+    const [itemsRes, locationsRes, profilesRes, userRes, suppliersRes] = await Promise.all([
       supabase.from("items").select("id, name, unit, sku, variant_info").eq("is_active", true).order("name"),
       supabase.from("locations").select("id, name, type").eq("is_active", true).order("name"),
       supabase.from("profiles").select("id, full_name, role").order("full_name"),
       supabase.auth.getUser(),
+      supabase.from("movements").select("supplier").not("supplier", "is", null),
     ])
     setItems((itemsRes.data as ItemWithStock[]) ?? [])
     setLocations((locationsRes.data as Location[]) ?? [])
     setProfiles((profilesRes.data as Profile[]) ?? [])
+    const uniqueSuppliers = [...new Set(
+      ((suppliersRes.data ?? []) as { supplier: string }[]).map(m => m.supplier).filter(Boolean)
+    )].sort()
+    setSuppliers(uniqueSuppliers)
     const uid = userRes.data.user?.id ?? ""
     setCurrentUserId(uid)
     if (uid) {
@@ -284,6 +297,25 @@ export default function NewMovementPage() {
     setScannerOpen(false)
     setScannedItems([])
     setScannedSupplier("")
+  }
+
+  async function handleCreateLocation() {
+    if (!newLocationName.trim()) return
+    setNewLocationLoading(true)
+    const { data, error } = await supabase.from("locations").insert({
+      name: newLocationName.trim(),
+      type: 'almacén' as const,
+      created_by: currentUserId,
+    }).select("id, name, type, description, is_active, created_at").single()
+    if (!error && data) {
+      const newLoc = data as Location
+      setLocations(prev => [...prev, newLoc].sort((a, b) => a.name.localeCompare(b.name)))
+      if (newLocationTarget === 'origin') update('origin_location_id', newLoc.id)
+      else if (newLocationTarget === 'destination') update('destination_location_id', newLoc.id)
+      setShowNewLocationDialog(false)
+      setNewLocationName('')
+    }
+    setNewLocationLoading(false)
   }
 
   async function doSubmit() {
@@ -563,7 +595,14 @@ export default function NewMovementPage() {
                   <Label htmlFor="origin">
                     {form.type === 'transferencia' ? 'Origen *' : form.type === 'salida' ? 'Sale de *' : 'Ubicación a ajustar *'}
                   </Label>
-                  <Select value={form.origin_location_id} onValueChange={v => update('origin_location_id', v)}>
+                  <Select value={form.origin_location_id} onValueChange={v => {
+                    if (v === '__new_location__') {
+                      setNewLocationTarget('origin')
+                      setShowNewLocationDialog(true)
+                      return
+                    }
+                    update('origin_location_id', v)
+                  }}>
                     <SelectTrigger id="origin"><SelectValue placeholder="Selecciona ubicación" /></SelectTrigger>
                     <SelectContent>
                       {locations.map(l => (
@@ -574,6 +613,14 @@ export default function NewMovementPage() {
                           </span>
                         </SelectItem>
                       ))}
+                      {isAdmin && (
+                        <SelectItem value="__new_location__" className="text-primary font-medium">
+                          <span className="flex items-center gap-1">
+                            <Plus className="h-3.5 w-3.5" />
+                            Crear almacén
+                          </span>
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -584,7 +631,14 @@ export default function NewMovementPage() {
                   <Label htmlFor="destination">
                     {form.type === 'transferencia' ? 'Destino *' : 'Entra a *'}
                   </Label>
-                  <Select value={form.destination_location_id} onValueChange={v => update('destination_location_id', v)}>
+                  <Select value={form.destination_location_id} onValueChange={v => {
+                    if (v === '__new_location__') {
+                      setNewLocationTarget('destination')
+                      setShowNewLocationDialog(true)
+                      return
+                    }
+                    update('destination_location_id', v)
+                  }}>
                     <SelectTrigger id="destination"><SelectValue placeholder="Selecciona ubicación" /></SelectTrigger>
                     <SelectContent>
                       {locations.filter(l => l.id !== form.origin_location_id).map(l => (
@@ -595,6 +649,14 @@ export default function NewMovementPage() {
                           </span>
                         </SelectItem>
                       ))}
+                      {isAdmin && (
+                        <SelectItem value="__new_location__" className="text-primary font-medium">
+                          <span className="flex items-center gap-1">
+                            <Plus className="h-3.5 w-3.5" />
+                            Crear almacén
+                          </span>
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -604,7 +666,47 @@ export default function NewMovementPage() {
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="supplier">Proveedor</Label>
-                    <Input id="supplier" placeholder="Ej: Ferretería López" value={form.supplier} onChange={e => update('supplier', e.target.value)} />
+                    <div className="relative">
+                      <Input
+                        id="supplier"
+                        placeholder="Ej: Ferretería López"
+                        value={form.supplier}
+                        autoComplete="off"
+                        onChange={e => { update('supplier', e.target.value); setShowSupplierDropdown(true) }}
+                        onFocus={() => setShowSupplierDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowSupplierDropdown(false), 150)}
+                      />
+                      {showSupplierDropdown && form.supplier.trim() && (
+                        (() => {
+                          const filtered = suppliers.filter(s => s.toLowerCase().includes(form.supplier.toLowerCase()))
+                          const exactMatch = suppliers.some(s => s.toLowerCase() === form.supplier.toLowerCase().trim())
+                          if (filtered.length === 0 && exactMatch) return null
+                          return (
+                            <div className="absolute top-full left-0 right-0 z-50 bg-background border rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
+                              {filtered.map(s => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
+                                  onMouseDown={() => { update('supplier', s); setShowSupplierDropdown(false) }}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                              {!exactMatch && (
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 transition-colors border-t"
+                                  onMouseDown={() => { update('supplier', form.supplier.trim()); setShowSupplierDropdown(false) }}
+                                >
+                                  + Usar: &ldquo;{form.supplier.trim()}&rdquo;
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })()
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="ref">No. Factura / Remisión</Label>
@@ -785,6 +887,31 @@ export default function NewMovementPage() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog crear almacén */}
+      <Dialog open={showNewLocationDialog} onOpenChange={v => { setShowNewLocationDialog(v); if (!v) setNewLocationName('') }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Crear almacén</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Nombre</Label>
+            <Input
+              placeholder="Ej: Almacén Central"
+              value={newLocationName}
+              onChange={e => setNewLocationName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleCreateLocation()}
+              autoFocus
+            />
+          </div>
+          <DialogFooter className="mt-4 gap-2">
+            <Button variant="outline" onClick={() => setShowNewLocationDialog(false)}>Cancelar</Button>
+            <Button onClick={handleCreateLocation} disabled={!newLocationName.trim() || newLocationLoading}>
+              {newLocationLoading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creando...</> : 'Crear'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
