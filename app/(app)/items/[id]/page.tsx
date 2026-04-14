@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, ArrowLeftRight, AlertTriangle, MapPin } from "lucide-react"
+import { TrackStockToggle } from "./track-stock-toggle"
 
 const movementTypeLabels = {
   entrada: { label: 'Entrada', color: 'success' as const },
@@ -86,6 +87,9 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
           </CardContent>
         </Card>
       </div>
+
+      {/* Monitor de stock */}
+      <TrackStockToggle itemId={id} initialValue={item.track_stock ?? false} />
 
       {/* Distribución por ubicación */}
       {stockData && stockData.length > 0 && (

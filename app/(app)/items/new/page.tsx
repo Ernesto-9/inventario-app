@@ -23,7 +23,7 @@ export default function NewItemPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [form, setForm] = useState({
     name: "", variant_info: "", description: "", sku: "", unit: "pieza",
-    category_id: "", min_stock: "0",
+    category_id: "", min_stock: "0", track_stock: false,
   })
 
   useEffect(() => {
@@ -45,6 +45,7 @@ export default function NewItemPage() {
       unit: form.unit,
       category_id: form.category_id || null,
       min_stock: parseFloat(form.min_stock) || 0,
+      track_stock: form.track_stock,
       created_by: user?.id,
     }).select("id").single()
 
@@ -99,6 +100,19 @@ export default function NewItemPage() {
                 <Input id="min_stock" type="number" min="0" step="0.01" value={form.min_stock} onChange={(e) => update('min_stock', e.target.value)} />
               </div>
             </div>
+
+            <label className="flex items-center gap-3 cursor-pointer select-none py-1">
+              <input
+                type="checkbox"
+                checked={form.track_stock}
+                onChange={e => setForm(f => ({ ...f, track_stock: e.target.checked }))}
+                className="h-4 w-4 rounded border-input accent-primary cursor-pointer"
+              />
+              <div>
+                <p className="text-sm font-medium leading-none">Alertar stock bajo</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Aparecerá en el dashboard cuando el stock llegue al mínimo</p>
+              </div>
+            </label>
 
             <div className="space-y-2">
               <Label htmlFor="category">Categoría</Label>

@@ -102,7 +102,7 @@ export default function CashPage() {
   const [submitting, setSubmitting] = useState(false)
 
   const [depositForm, setDepositForm] = useState({ fund_id: "", amount: "", description: "" })
-  const [gastoForm, setGastoForm] = useState({ fund_id: "", amount: "", description: "", reference_number: "" })
+  const [gastoForm, setGastoForm] = useState({ fund_id: "", amount: "", description: "", reference_number: "", category: "" })
   const [newFundForm, setNewFundForm] = useState({ name: "", description: "" })
 
   const loadData = useCallback(async () => {
@@ -155,18 +155,19 @@ export default function CashPage() {
 
   async function handleGasto(e: React.FormEvent) {
     e.preventDefault()
-    if (!gastoForm.fund_id || !gastoForm.amount || !gastoForm.description) return
+    if (!gastoForm.fund_id || !gastoForm.amount || !gastoForm.description || !gastoForm.category) return
     setSubmitting(true)
+    const fullDescription = `[${gastoForm.category}] ${gastoForm.description}`
     const { error } = await supabase.from("cash_transactions").insert({
       fund_id: gastoForm.fund_id, type: "gasto",
-      amount: parseFloat(gastoForm.amount), description: gastoForm.description,
+      amount: parseFloat(gastoForm.amount), description: fullDescription,
       reference_number: gastoForm.reference_number || null, created_by: currentUserId,
     })
     setSubmitting(false)
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return }
     toast({ title: "Gasto registrado" })
     setGastoDialog(false)
-    setGastoForm({ fund_id: "", amount: "", description: "", reference_number: "" })
+    setGastoForm({ fund_id: "", amount: "", description: "", reference_number: "", category: "" })
     loadData()
   }
 
@@ -390,16 +391,11 @@ export default function CashPage() {
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <Button variant="outline" size="sm" onClick={() => setView('cycles')}>Ciclos</Button>
-          {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => setNewFundDialog(true)}>
-              <Plus className="h-4 w-4 mr-1" />Fondo
-            </Button>
-          )}
           <Button variant="outline" onClick={() => setGastoDialog(true)}>
             <TrendingDown className="h-4 w-4 mr-1" />Gasto
           </Button>
           <Button onClick={() => setDepositDialog(true)}>
-            <TrendingUp className="h-4 w-4 mr-1" />Agregar
+            <TrendingUp className="h-4 w-4 mr-1" />Depositar
           </Button>
         </div>
       </div>
@@ -430,18 +426,25 @@ export default function CashPage() {
 
       {/* Fondos */}
       {funds.length > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {funds.map(fund => (
-            <Card key={fund.id}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{fund.name}</p>
-                  {fund.description && <p className="text-xs text-muted-foreground">{fund.description}</p>}
-                </div>
-                <p className={`text-lg font-bold ${fund.balance < 0 ? 'text-red-500' : ''}`}>{fmt(fund.balance)}</p>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {funds.map(fund => (
+              <Card key={fund.id}>
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{fund.name}</p>
+                    {fund.description && <p className="text-xs text-muted-foreground">{fund.description}</p>}
+                  </div>
+                  <p className={`text-lg font-bold ${fund.balance < 0 ? 'text-red-500' : ''}`}>{fmt(fund.balance)}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {isAdmin && (
+            <button onClick={() => setNewFundDialog(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+              <Plus className="h-3 w-3" />Nuevo fondo
+            </button>
+          )}
         </div>
       ) : (
         <Card>
@@ -519,6 +522,9 @@ export default function CashPage() {
       <Dialog open={gastoDialog} onOpenChange={setGastoDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>Registrar gasto</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-2 pb-1">
+            Para compras de materiales, usa una <strong>Entrada de Inventario</strong> — el gasto se registra automáticamente.
+          </p>
           <form onSubmit={handleGasto} className="space-y-4">
             <div className="space-y-2">
               <Label>Fondo</Label>
@@ -528,13 +534,26 @@ export default function CashPage() {
               </Select>
             </div>
             <div className="space-y-2">
+              <Label>Categoría</Label>
+              <Select value={gastoForm.category} onValueChange={v => setGastoForm(f => ({ ...f, category: v }))}>
+                <SelectTrigger><SelectValue placeholder="Selecciona una categoría" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Servicios">Servicios (plomero, electricista, técnico)</SelectItem>
+                  <SelectItem value="Transporte">Transporte</SelectItem>
+                  <SelectItem value="Alimentación">Alimentación</SelectItem>
+                  <SelectItem value="Renta / Utilities">Renta / Utilities</SelectItem>
+                  <SelectItem value="Otro">Otro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label>Monto ($)</Label>
               <Input type="number" min="0.01" step="0.01" placeholder="0.00"
                 value={gastoForm.amount} onChange={e => setGastoForm(f => ({ ...f, amount: e.target.value }))} required />
             </div>
             <div className="space-y-2">
               <Label>Descripción</Label>
-              <Input placeholder="Ej: Compra de materiales"
+              <Input placeholder="Ej: Arreglo de tubería"
                 value={gastoForm.description} onChange={e => setGastoForm(f => ({ ...f, description: e.target.value }))} required />
             </div>
             <div className="space-y-2">
