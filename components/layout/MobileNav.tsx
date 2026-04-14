@@ -2,26 +2,38 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Wallet, Search, ArrowLeftRight, BarChart2 } from "lucide-react"
+import { LayoutDashboard, Wallet, Search, ArrowLeftRight, BarChart2, ShoppingCart, ClipboardList } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { UserRole } from "@/types/database"
 
-const tabs = [
+const adminTabs = [
   { href: "/dashboard", label: "Inicio", icon: LayoutDashboard },
   { href: "/cash", label: "Caja", icon: Wallet },
   { href: "/buscar", label: "Buscar", icon: Search },
   { href: "/movements/new", label: "Mover", icon: ArrowLeftRight },
-  { href: "/reports", label: "Reportes", icon: BarChart2 },
+  { href: "/compras", label: "Compras", icon: ShoppingCart },
 ]
 
-export function MobileNav() {
+const workerTabs = [
+  { href: "/pedidos", label: "Mis pedidos", icon: ClipboardList },
+  { href: "/pedidos/nuevo", label: "Nuevo pedido", icon: ArrowLeftRight, highlight: true },
+]
+
+interface MobileNavProps {
+  role: UserRole
+}
+
+export function MobileNav({ role }: MobileNavProps) {
   const pathname = usePathname()
+
+  const tabs = role === "trabajador" ? workerTabs : adminTabs
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t bg-background">
-      <div className="grid grid-cols-5 h-16">
-        {tabs.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || (href !== "/dashboard" && href !== "/movements/new" && pathname.startsWith(href))
-          const isNew = href === "/movements/new"
+      <div className={cn("grid h-16", role === "trabajador" ? "grid-cols-2" : "grid-cols-5")}>
+        {tabs.map(({ href, label, icon: Icon, highlight }) => {
+          const active = pathname === href || (href !== "/dashboard" && href !== "/movements/new" && href !== "/pedidos/nuevo" && pathname.startsWith(href))
+          const isHighlight = !!highlight
           return (
             <Link
               key={href}
@@ -30,15 +42,15 @@ export function MobileNav() {
             >
               <div className={cn(
                 "rounded-full p-2 transition-colors",
-                isNew && "bg-primary text-primary-foreground",
-                !isNew && active && "text-primary",
-                !isNew && !active && "text-muted-foreground"
+                isHighlight && "bg-primary text-primary-foreground",
+                !isHighlight && active && "text-primary",
+                !isHighlight && !active && "text-muted-foreground"
               )}>
                 <Icon className="h-5 w-5" />
               </div>
               <span className={cn(
                 "text-[10px]",
-                active || isNew ? "text-primary font-medium" : "text-muted-foreground"
+                active || isHighlight ? "text-primary font-medium" : "text-muted-foreground"
               )}>
                 {label}
               </span>
