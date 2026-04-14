@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -35,6 +35,7 @@ interface ItemWithStock {
   unit: string
   sku: string | null
   variant_info?: string | null
+  aliases?: string | null
 }
 
 interface ItemRow {
@@ -114,6 +115,23 @@ export default function NewMovementPage() {
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([])
   const [scannedSupplier, setScannedSupplier] = useState("")
 
+  const [linkingIdx, setLinkingIdx] = useState<number | null>(null)
+  const [linkSearch, setLinkSearch] = useState("")
+  const [saveAsAlias, setSaveAsAlias] = useState(false)
+
+  // Mapa de alias (nombre alternativo → item) para matching automático en OCR
+  const aliasMap = useMemo(() => {
+    const map = new Map<string, ItemWithStock>()
+    items.forEach(i => {
+      if (i.aliases) {
+        i.aliases.split(',').forEach(alias => {
+          map.set(alias.trim().toLowerCase(), i)
+        })
+      }
+    })
+    return map
+  }, [items])
+
   const [form, setForm] = useState({
     type: '' as MovementType | '',
     origin_location_id: searchParams.get('location') ?? '',
@@ -130,7 +148,7 @@ export default function NewMovementPage() {
 
   const loadData = useCallback(async () => {
     const [itemsRes, locationsRes, profilesRes, userRes, suppliersRes] = await Promise.all([
-      supabase.from("items").select("id, name, unit, sku, variant_info").eq("is_active", true).order("name"),
+      supabase.from("items").select("id, name, unit, sku, variant_info, aliases").eq("is_active", true).order("name"),
       supabase.from("locations").select("id, name, type").eq("is_active", true).order("name"),
       supabase.from("profiles").select("id, full_name, role").order("full_name"),
       supabase.auth.getUser(),
@@ -285,16 +303,35 @@ export default function NewMovementPage() {
   }
 
   function confirmScannedItems() {
-    const newRows: ItemRow[] = scannedItems.map(si => makeRow({
-      item_id: si.matched_id,
-      item_name: si._name,
-      variant_info: si._variant_info,
-      unit: 'pieza',
-      quantity: si._quantity,
-      unit_cost: si._unit_cost,
-      is_new: !si.matched_id,
-      search: si._name + (si._variant_info ? ` — ${si._variant_info}` : ''),
-    }))
+    // Construir mapa de alias → item para matching automático
+    const aliasMap = new Map<string, ItemWithStock>()
+    items.forEach(i => {
+      if (i.aliases) {
+        i.aliases.split(',').forEach(alias => {
+          aliasMap.set(alias.trim().toLowerCase(), i)
+        })
+      }
+    })
+
+    const newRows: ItemRow[] = scannedItems.map(si => {
+      // Si tiene matched_id (por OCR) usar ese; si no, buscar por alias
+      const resolvedItem = si.matched_id
+        ? items.find(i => i.id === si.matched_id) ?? null
+        : aliasMap.get(si._name.toLowerCase().trim()) ?? null
+
+      return makeRow({
+        item_id: resolvedItem?.id ?? null,
+        item_name: resolvedItem?.name ?? si._name,
+        variant_info: resolvedItem?.variant_info ?? si._variant_info,
+        unit: resolvedItem?.unit ?? 'pieza',
+        quantity: si._quantity,
+        unit_cost: si._unit_cost,
+        is_new: !resolvedItem,
+        search: resolvedItem
+          ? resolvedItem.name + (resolvedItem.variant_info ? ` — ${resolvedItem.variant_info}` : '')
+          : si._name + (si._variant_info ? ` — ${si._variant_info}` : ''),
+      })
+    })
     setItemRows(prev => {
       const nonEmpty = prev.filter(r => r.item_id || r.item_name.trim())
       return nonEmpty.length ? [...nonEmpty, ...newRows] : newRows
@@ -303,6 +340,7 @@ export default function NewMovementPage() {
     setScannerOpen(false)
     setScannedItems([])
     setScannedSupplier("")
+    setLinkingIdx(null)
   }
 
   async function handleCreateLocation() {
@@ -334,12 +372,17 @@ export default function NewMovementPage() {
     for (const row of validRows) {
       let itemId = row.item_id
       if (row.is_new) {
-        const { data: newItem } = await supabase.from("items").insert({
+        const { data: newItem, error: itemError } = await supabase.from("items").insert({
           name: row.item_name.trim(),
           variant_info: row.variant_info.trim() || null,
           unit: row.unit || 'pieza',
           created_by: currentUserId,
         }).select("id").single()
+        if (itemError) {
+          setError(`No se pudo crear el artículo "${row.item_name}": ${itemError.message}`)
+          setLoading(false)
+          return
+        }
         itemId = (newItem as { id: string } | null)?.id ?? null
       }
       if (!itemId) continue
@@ -415,6 +458,7 @@ export default function NewMovementPage() {
     const validRows = itemRows.filter(r => (r.item_id || r.item_name.trim()) && r.quantity && parseFloat(r.quantity) > 0)
     if (validRows.length === 0) return setError("Agrega al menos un artículo con cantidad")
     if (form.type === 'salida' && !form.recipient_name.trim()) return setError("Indica a quién se le entrega")
+    if (form.type === 'entrada' && !form.supplier.trim()) return setError("El proveedor es obligatorio para entradas")
 
     if (validRows.some(r => r.is_new)) {
       setShowNewItemsDialog(true)
@@ -673,7 +717,7 @@ export default function NewMovementPage() {
               {form.type === 'entrada' && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="supplier">Proveedor</Label>
+                    <Label htmlFor="supplier">Proveedor <span className="text-destructive">*</span></Label>
                     <div className="relative">
                       <Input
                         id="supplier"
@@ -914,10 +958,24 @@ export default function NewMovementPage() {
                 {scannedItems.map((si, idx) => (
                   <div key={idx} className="border rounded-lg p-3 space-y-2">
                     <div className="flex items-center gap-2">
-                      {si.is_new
-                        ? <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">Nuevo</Badge>
-                        : <Badge variant="outline" className="text-xs text-green-600 border-green-300"><Check className="h-2.5 w-2.5 mr-1" />Existente</Badge>
-                      }
+                      {(() => {
+                        const isRecognized = !!si.matched_id || !!aliasMap.get(si._name.toLowerCase().trim())
+                        if (isRecognized) {
+                          return <Badge variant="outline" className="text-xs text-green-600 border-green-300"><Check className="h-2.5 w-2.5 mr-1" />Existente</Badge>
+                        }
+                        return (
+                          <>
+                            <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">No reconocido</Badge>
+                            <button
+                              type="button"
+                              className="text-xs text-primary underline"
+                              onClick={() => { setLinkingIdx(idx); setLinkSearch(""); setSaveAsAlias(false) }}
+                            >
+                              Ligar a artículo
+                            </button>
+                          </>
+                        )
+                      })()}
                       <button type="button" onClick={() => setScannedItems(prev => prev.filter((_, i) => i !== idx))} className="ml-auto text-muted-foreground hover:text-destructive">
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -937,6 +995,81 @@ export default function NewMovementPage() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: ligar artículo escaneado a artículo del catálogo */}
+      <Dialog open={linkingIdx !== null} onOpenChange={open => { if (!open) setLinkingIdx(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Ligar a artículo del catálogo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {linkingIdx !== null && (
+              <p className="text-sm text-muted-foreground">
+                Concepto del proveedor: <strong>{scannedItems[linkingIdx]?._name}</strong>
+              </p>
+            )}
+            <Input
+              placeholder="Buscar artículo..."
+              value={linkSearch}
+              onChange={e => setLinkSearch(e.target.value)}
+              autoFocus
+            />
+            <div className="max-h-48 overflow-y-auto border rounded-md divide-y">
+              {items
+                .filter(i => {
+                  const q = linkSearch.toLowerCase()
+                  return !q || i.name.toLowerCase().includes(q) || (i.variant_info ?? '').toLowerCase().includes(q) || (i.sku ?? '').toLowerCase().includes(q)
+                })
+                .slice(0, 20)
+                .map(i => (
+                  <button
+                    key={i.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
+                    onClick={async () => {
+                      if (linkingIdx === null) return
+                      const conceptName = scannedItems[linkingIdx]._name.trim()
+                      // Actualizar scannedItems con el matched_id
+                      setScannedItems(prev => prev.map((s, idx) =>
+                        idx === linkingIdx ? { ...s, matched_id: i.id, is_new: false } : s
+                      ))
+                      // Guardar alias si el checkbox está marcado
+                      if (saveAsAlias && conceptName) {
+                        const currentAliases = i.aliases ? i.aliases.split(',').map(a => a.trim()) : []
+                        if (!currentAliases.map(a => a.toLowerCase()).includes(conceptName.toLowerCase())) {
+                          const newAliases = [...currentAliases, conceptName].join(', ')
+                          const { error } = await supabase.from('items').update({ aliases: newAliases }).eq('id', i.id)
+                          if (!error) {
+                            setItems(prev => prev.map(item => item.id === i.id ? { ...item, aliases: newAliases } : item))
+                            toast({ title: "Nombre alternativo guardado para futuros escaneos" })
+                          }
+                        }
+                      }
+                      setLinkingIdx(null)
+                    }}
+                  >
+                    <span className="font-medium">{i.name}</span>
+                    {i.variant_info && <span className="text-muted-foreground"> — {i.variant_info}</span>}
+                  </button>
+                ))}
+            </div>
+            {scannedSupplier && linkingIdx !== null && (
+              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={saveAsAlias}
+                  onChange={e => setSaveAsAlias(e.target.checked)}
+                  className="rounded border-input"
+                />
+                Guardar &ldquo;{scannedItems[linkingIdx]?._name}&rdquo; como nombre alternativo del artículo seleccionado
+              </label>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkingIdx(null)}>Cancelar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
