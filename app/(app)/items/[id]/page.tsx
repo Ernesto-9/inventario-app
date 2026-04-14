@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, ArrowLeftRight, AlertTriangle, MapPin } from "lucide-react"
 import { TrackStockToggle } from "./track-stock-toggle"
+import { ItemActions } from "./item-actions"
 
 const movementTypeLabels = {
   entrada: { label: 'Entrada', color: 'success' as const },
@@ -18,7 +19,8 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ data: item }, { data: stockData }, { data: movements }, { data: stockTotal }] = await Promise.all([
+  const { data: { user } } = await supabase.auth.getUser()
+  const [{ data: item }, { data: stockData }, { data: movements }, { data: stockTotal }, { data: profile }, { data: categories }] = await Promise.all([
     supabase.from("items").select("*, categories(name, color)").eq("id", id).single(),
     supabase.from("stock_by_location").select("*").eq("item_id", id).gt("quantity", 0).order("quantity", { ascending: false }),
     supabase
@@ -28,7 +30,11 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
       .order("created_at", { ascending: false })
       .limit(30),
     supabase.from("stock_totals").select("*").eq("item_id", id).single(),
+    user ? supabase.from("profiles").select("role").eq("id", user.id).single() : Promise.resolve({ data: null }),
+    supabase.from("categories").select("id, name, color").order("name"),
   ])
+
+  const isAdmin = (profile as { role: string } | null)?.role === "admin"
 
   if (!item) notFound()
 
@@ -59,11 +65,29 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             <Badge variant="secondary">{item.unit}</Badge>
           </div>
         </div>
-        <Button asChild size="sm">
-          <Link href={`/movements/new?item=${id}`}>
-            <ArrowLeftRight className="h-4 w-4 mr-1" />Mover
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {isAdmin && (
+            <ItemActions
+              item={{
+                id: item.id,
+                name: item.name,
+                variant_info: (item as { variant_info?: string | null }).variant_info,
+                sku: item.sku,
+                unit: item.unit,
+                min_stock: item.min_stock,
+                category_id: (item as { category_id?: string | null }).category_id,
+                description: (item as { description?: string | null }).description,
+                aliases: (item as { aliases?: string | null }).aliases,
+              }}
+              categories={(categories ?? []) as { id: string; name: string; color: string | null }[]}
+            />
+          )}
+          <Button asChild size="sm">
+            <Link href={`/movements/new?item=${id}`}>
+              <ArrowLeftRight className="h-4 w-4 mr-1" />Mover
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stock total */}

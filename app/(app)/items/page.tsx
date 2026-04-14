@@ -5,11 +5,10 @@ import { createClient } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Package, AlertTriangle, Search, Pencil, Trash2, Loader2 } from "lucide-react"
-import type { StockTotal, StockByLocation, Category } from "@/types/database"
+import { Package, AlertTriangle, Search, Trash2, Loader2, X } from "lucide-react"
+import Link from "next/link"
+import type { StockTotal, StockByLocation } from "@/types/database"
 import { toast } from "@/hooks/use-toast"
 
 interface LastEntry {
@@ -18,33 +17,21 @@ interface LastEntry {
   supplier: string | null
 }
 
-interface EditForm {
-  name: string
-  variant_info: string
-  sku: string
-  unit: string
-  min_stock: string
-  category_id: string
-  description: string
-}
-
 export default function InventarioPage() {
   const supabase = createClient()
 
   const [items, setItems] = useState<StockTotal[]>([])
   const [locationMap, setLocationMap] = useState<Map<string, StockByLocation[]>>(new Map())
   const [lastEntries, setLastEntries] = useState<Map<string, LastEntry>>(new Map())
-  const [categories, setCategories] = useState<Category[]>([])
   const [search, setSearch] = useState("")
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<EditForm>({ name: "", variant_info: "", sku: "", unit: "", min_stock: "", category_id: "", description: "" })
-  const [editLoading, setEditLoading] = useState(false)
-
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+
+  const [clearingStock, setClearingStock] = useState<{ item_id: string; location_id: string; location_name: string; item_name: string } | null>(null)
+  const [clearStockLoading, setClearStockLoading] = useState(false)
 
   useEffect(() => { loadAll() }, [])
 
@@ -52,13 +39,12 @@ export default function InventarioPage() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
 
-    const [stockRes, locRes, movRes, profileRes, catRes] = await Promise.all([
+    const [stockRes, locRes, movRes, profileRes] = await Promise.all([
       supabase.from("stock_totals").select("*").order("item_name"),
       supabase.from("stock_by_location").select("*").gt("quantity", 0),
       supabase.from("movements").select("item_id, created_at, supplier")
         .eq("type", "entrada").order("created_at", { ascending: false }).limit(1000),
       user ? supabase.from("profiles").select("role").eq("id", user.id).single() : Promise.resolve({ data: null }),
-      supabase.from("categories").select("*").order("name"),
     ])
 
     setItems((stockRes.data as StockTotal[]) ?? [])
@@ -77,7 +63,6 @@ export default function InventarioPage() {
     setLastEntries(entryMap)
 
     setIsAdmin((profileRes.data as { role: string } | null)?.role === "admin")
-    setCategories((catRes.data as Category[]) ?? [])
     setLoading(false)
   }
 
@@ -91,45 +76,6 @@ export default function InventarioPage() {
     )
   }, [items, search])
 
-  function openEdit(item: StockTotal) {
-    supabase.from("items").select("*").eq("id", item.item_id).single().then(({ data }) => {
-      if (!data) return
-      setEditForm({
-        name: data.name ?? "",
-        variant_info: (data as { variant_info?: string | null }).variant_info ?? "",
-        sku: data.sku ?? "",
-        unit: data.unit ?? "",
-        min_stock: String(data.min_stock ?? 0),
-        category_id: (data as { category_id?: string | null }).category_id ?? "",
-        description: data.description ?? "",
-      })
-      setEditingId(item.item_id)
-    })
-  }
-
-  async function handleSave() {
-    if (!editingId || !editForm.name.trim()) return
-    setEditLoading(true)
-    const { error } = await supabase.from("items").update({
-      name: editForm.name.trim(),
-      variant_info: editForm.variant_info.trim() || null,
-      sku: editForm.sku.trim() || null,
-      unit: editForm.unit.trim() || "pieza",
-      min_stock: parseFloat(editForm.min_stock) || 0,
-      category_id: editForm.category_id || null,
-      description: editForm.description.trim() || null,
-    }).eq("id", editingId)
-
-    if (!error) {
-      toast({ title: "Artículo actualizado" })
-      setEditingId(null)
-      loadAll()
-    } else {
-      toast({ title: "Error al guardar", variant: "destructive" })
-    }
-    setEditLoading(false)
-  }
-
   async function handleDelete() {
     if (!deletingId) return
     setDeleteLoading(true)
@@ -142,6 +88,23 @@ export default function InventarioPage() {
       toast({ title: "Error al eliminar", variant: "destructive" })
     }
     setDeleteLoading(false)
+  }
+
+  async function handleClearStock() {
+    if (!clearingStock) return
+    setClearStockLoading(true)
+    const { error } = await supabase.rpc("admin_clear_stock", {
+      p_item_id: clearingStock.item_id,
+      p_location_id: clearingStock.location_id,
+    })
+    if (!error) {
+      toast({ title: "Stock eliminado" })
+      setClearingStock(null)
+      loadAll()
+    } else {
+      toast({ title: "Error al eliminar stock", variant: "destructive" })
+    }
+    setClearStockLoading(false)
   }
 
   if (loading) {
@@ -180,7 +143,7 @@ export default function InventarioPage() {
               <th className="text-right px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Cantidad total</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Última entrada</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Último proveedor</th>
-              {isAdmin && <th className="px-4 py-3 w-20" />}
+              {isAdmin && <th className="px-4 py-3 w-12" />}
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -193,13 +156,13 @@ export default function InventarioPage() {
                   className={`transition-colors hover:bg-muted/30 ${item.is_low_stock ? "bg-yellow-50/60" : ""}`}
                 >
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <Link href={`/items/${item.item_id}`} className="flex items-center gap-2 hover:underline">
                       {item.is_low_stock && <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />}
                       <div>
                         <p className="font-medium leading-tight">{item.item_name}</p>
                         {item.sku && <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>}
                       </div>
-                    </div>
+                    </Link>
                   </td>
                   <td className="px-4 py-3">
                     {item.category_name ? (
@@ -218,9 +181,19 @@ export default function InventarioPage() {
                     {locs.length > 0 ? (
                       <div className="space-y-0.5">
                         {locs.map(l => (
-                          <div key={l.id} className="text-xs">
+                          <div key={l.id} className="text-xs flex items-center gap-1 group">
                             <span className="font-medium">{l.location_name}</span>
-                            <span className="text-muted-foreground ml-1">({l.quantity} {l.unit})</span>
+                            <span className="text-muted-foreground">({l.quantity} {l.unit})</span>
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => setClearingStock({ item_id: item.item_id, location_id: l.location_id, location_name: l.location_name, item_name: item.item_name })}
+                                className="ml-1 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive transition-opacity"
+                                title="Eliminar stock de esta ubicación"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -247,19 +220,14 @@ export default function InventarioPage() {
                   </td>
                   {isAdmin && (
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 justify-end">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(item)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setDeletingId(item.item_id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setDeletingId(item.item_id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </td>
                   )}
                 </tr>
@@ -288,7 +256,7 @@ export default function InventarioPage() {
               className={`border rounded-lg p-4 space-y-2 ${item.is_low_stock ? "border-yellow-300" : ""}`}
             >
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
+                <Link href={`/items/${item.item_id}`} className="min-w-0 hover:underline">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {item.is_low_stock && <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />}
                     <p className="font-medium">{item.item_name}</p>
@@ -303,7 +271,7 @@ export default function InventarioPage() {
                       {item.category_name}
                     </Badge>
                   )}
-                </div>
+                </Link>
                 <div className="text-right shrink-0">
                   <span className={`text-lg font-bold tabular-nums ${item.is_low_stock ? "text-yellow-600" : ""}`}>
                     {item.total_quantity}
@@ -314,9 +282,23 @@ export default function InventarioPage() {
               </div>
 
               {locs.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {locs.map(l => `${l.location_name}: ${l.quantity} ${l.unit}`).join(" · ")}
-                </p>
+                <div className="space-y-0.5">
+                  {locs.map(l => (
+                    <div key={l.id} className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <span>{l.location_name}: {l.quantity} {l.unit}</span>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setClearingStock({ item_id: item.item_id, location_id: l.location_id, location_name: l.location_name, item_name: item.item_name })}
+                          className="ml-1 text-destructive hover:text-destructive"
+                          title="Eliminar stock de esta ubicación"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
 
               {last && (
@@ -328,9 +310,6 @@ export default function InventarioPage() {
 
               {isAdmin && (
                 <div className="flex gap-2 pt-1">
-                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => openEdit(item)}>
-                    <Pencil className="h-3 w-3" />Editar
-                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -353,72 +332,20 @@ export default function InventarioPage() {
         )}
       </div>
 
-      {/* Dialog: editar artículo */}
-      <Dialog open={!!editingId} onOpenChange={open => { if (!open) setEditingId(null) }}>
-        <DialogContent className="max-w-md">
+      {/* Dialog: eliminar stock de una ubicación */}
+      <Dialog open={!!clearingStock} onOpenChange={open => { if (!open) setClearingStock(null) }}>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Editar artículo</DialogTitle>
+            <DialogTitle>¿Eliminar este stock?</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-1">
-            <div className="space-y-1.5">
-              <Label>Nombre *</Label>
-              <Input
-                value={editForm.name}
-                onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Variante / especificación</Label>
-              <Input
-                placeholder="Ej: M6 × 20mm, Zinc"
-                value={editForm.variant_info}
-                onChange={e => setEditForm(f => ({ ...f, variant_info: e.target.value }))}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>SKU</Label>
-                <Input value={editForm.sku} onChange={e => setEditForm(f => ({ ...f, sku: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Unidad</Label>
-                <Input
-                  placeholder="pieza, kg, litro..."
-                  value={editForm.unit}
-                  onChange={e => setEditForm(f => ({ ...f, unit: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Stock mínimo</Label>
-              <Input
-                type="number"
-                min="0"
-                value={editForm.min_stock}
-                onChange={e => setEditForm(f => ({ ...f, min_stock: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Categoría</Label>
-              <Select
-                value={editForm.category_id || "__none__"}
-                onValueChange={v => setEditForm(f => ({ ...f, category_id: v === "__none__" ? "" : v }))}
-              >
-                <SelectTrigger><SelectValue placeholder="Sin categoría" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Sin categoría</SelectItem>
-                  {categories.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground py-1">
+            Se eliminará el registro de <strong>{clearingStock?.item_name}</strong> en <strong>{clearingStock?.location_name}</strong>. No se puede deshacer.
+          </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingId(null)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={editLoading || !editForm.name.trim()}>
-              {editLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              Guardar
+            <Button variant="outline" onClick={() => setClearingStock(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleClearStock} disabled={clearStockLoading}>
+              {clearStockLoading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Eliminar
             </Button>
           </DialogFooter>
         </DialogContent>
