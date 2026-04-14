@@ -98,6 +98,7 @@ export default function NewMovementPage() {
 
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false)
+  const [showRecipientDropdown, setShowRecipientDropdown] = useState(false)
 
   const [showNewLocationDialog, setShowNewLocationDialog] = useState(false)
   const [newLocationTarget, setNewLocationTarget] = useState<'origin' | 'destination' | null>(null)
@@ -121,6 +122,7 @@ export default function NewMovementPage() {
     reference_number: '',
     responsible_id: '',
     supplier: '',
+    recipient_name: '',
   })
 
   const update = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }))
@@ -145,7 +147,11 @@ export default function NewMovementPage() {
     setCurrentUserId(uid)
     if (uid) {
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", uid).single()
-      setIsAdmin((profile as { role: string } | null)?.role === "admin")
+      const admin = (profile as { role: string } | null)?.role === "admin"
+      setIsAdmin(admin)
+      if (!admin) {
+        setForm(f => ({ ...f, responsible_id: uid }))
+      }
     }
     const preItemId = searchParams.get('item')
     if (preItemId && itemsRes.data) {
@@ -349,6 +355,7 @@ export default function NewMovementPage() {
         p_reference_number: form.reference_number || undefined,
         p_responsible_id: form.responsible_id || undefined,
         p_supplier: form.supplier || undefined,
+        p_recipient_name: form.recipient_name || undefined,
       })
 
       if (rpcError) {
@@ -407,6 +414,7 @@ export default function NewMovementPage() {
 
     const validRows = itemRows.filter(r => (r.item_id || r.item_name.trim()) && r.quantity && parseFloat(r.quantity) > 0)
     if (validRows.length === 0) return setError("Agrega al menos un artículo con cantidad")
+    if (form.type === 'salida' && !form.recipient_name.trim()) return setError("Indica a quién se le entrega")
 
     if (validRows.some(r => r.is_new)) {
       setShowNewItemsDialog(true)
@@ -720,15 +728,57 @@ export default function NewMovementPage() {
                 </>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="responsible">Responsable</Label>
-                <Select value={form.responsible_id} onValueChange={v => update('responsible_id', v)}>
-                  <SelectTrigger id="responsible"><SelectValue placeholder="¿Quién realiza el movimiento?" /></SelectTrigger>
-                  <SelectContent>
-                    {profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Campo "Entregado a" solo para salidas */}
+              {form.type === 'salida' && (
+                <div className="space-y-2">
+                  <Label htmlFor="recipient">Entregado a *</Label>
+                  <div className="relative">
+                    <Input
+                      id="recipient"
+                      placeholder="Nombre del albañil o trabajador"
+                      value={form.recipient_name}
+                      autoComplete="off"
+                      onChange={e => { update('recipient_name', e.target.value); setShowRecipientDropdown(true) }}
+                      onFocus={() => setShowRecipientDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowRecipientDropdown(false), 150)}
+                    />
+                    {showRecipientDropdown && form.recipient_name.trim() && (() => {
+                      const workers = profiles.filter(p =>
+                        p.role === 'trabajador' &&
+                        p.full_name.toLowerCase().includes(form.recipient_name.toLowerCase())
+                      )
+                      if (workers.length === 0) return null
+                      return (
+                        <div className="absolute top-full left-0 right-0 z-50 bg-background border rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
+                          {workers.map(p => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
+                              onMouseDown={() => { update('recipient_name', p.full_name); setShowRecipientDropdown(false) }}
+                            >
+                              {p.full_name}
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Responsable: solo admin puede cambiar; los demás quedan como ellos mismos */}
+              {isAdmin ? (
+                <div className="space-y-2">
+                  <Label htmlFor="responsible">Responsable del movimiento</Label>
+                  <Select value={form.responsible_id} onValueChange={v => update('responsible_id', v)}>
+                    <SelectTrigger id="responsible"><SelectValue placeholder="¿Quién realiza el movimiento?" /></SelectTrigger>
+                    <SelectContent>
+                      {profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
 
               <div className="space-y-2">
                 <Label htmlFor="notes">Notas</Label>

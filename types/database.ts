@@ -1,6 +1,6 @@
 export type LocationType = 'almacén' | 'obra' | 'vehículo' | 'empleado' | 'otro'
 export type MovementType = 'entrada' | 'salida' | 'transferencia' | 'ajuste'
-export type UserRole = 'admin' | 'supervisor'
+export type UserRole = 'admin' | 'supervisor' | 'trabajador'
 export type AttachmentType = 'foto' | 'factura' | 'documento'
 
 export interface Profile {
@@ -37,6 +37,7 @@ export interface Item {
   unit: string
   category_id: string | null
   min_stock: number
+  track_stock: boolean
   photo_url: string | null
   variant_info: string | null
   is_active: boolean
@@ -67,6 +68,7 @@ export interface Movement {
   reference_number: string | null
   supplier: string | null
   responsible_id: string | null
+  recipient_name: string | null
   created_by: string
   created_at: string
   // joins
@@ -129,6 +131,7 @@ export interface StockTotal {
   item_name: string
   unit: string
   min_stock: number
+  track_stock: boolean
   sku: string | null
   category_name: string | null
   category_color: string | null
@@ -149,6 +152,49 @@ export interface StockByLocation {
   updated_at: string
 }
 
+export type PurchaseRequestStatus = 'pendiente' | 'en_proceso' | 'completada' | 'cancelada'
+export type PurchaseRequestItemStatus = 'pendiente' | 'comprado'
+
+export interface PurchaseRequest {
+  id: string
+  created_by: string
+  location_id: string
+  status: PurchaseRequestStatus
+  notes: string | null
+  created_at: string
+  updated_at: string
+  // joins
+  locations?: Pick<Location, 'id' | 'name' | 'type'> | null
+  profiles?: Pick<Profile, 'id' | 'full_name'> | null
+  purchase_request_items?: PurchaseRequestItem[]
+}
+
+export interface PurchaseRequestItem {
+  id: string
+  request_id: string
+  item_id: string | null
+  item_name: string
+  quantity: number
+  unit: string | null
+  notes: string | null
+  status: PurchaseRequestItemStatus
+  assigned_supplier: string | null
+  actual_unit_cost: number | null
+  purchased_quantity: number | null
+  created_at: string
+  // joins
+  items?: Pick<Item, 'id' | 'name' | 'unit'> | null
+}
+
+export interface SupplierItemHistory {
+  supplier: string
+  item_id: string
+  item_name: string
+  unit: string
+  unit_cost: number
+  created_at: string
+}
+
 // Generic Supabase Database type (used by createClient)
 export interface Database {
   public: {
@@ -163,10 +209,13 @@ export interface Database {
       item_attachments: { Row: ItemAttachment; Insert: Omit<ItemAttachment, 'id' | 'created_at'>; Update: Partial<ItemAttachment>; Relationships: [] }
       cash_funds: { Row: CashFund; Insert: Omit<CashFund, 'id' | 'created_at'>; Update: Partial<CashFund>; Relationships: [] }
       cash_transactions: { Row: CashTransaction; Insert: Omit<CashTransaction, 'id' | 'created_at'>; Update: Partial<CashTransaction>; Relationships: [] }
+      purchase_requests: { Row: PurchaseRequest; Insert: Omit<PurchaseRequest, 'id' | 'created_at' | 'updated_at'>; Update: Partial<PurchaseRequest>; Relationships: [] }
+      purchase_request_items: { Row: PurchaseRequestItem; Insert: Omit<PurchaseRequestItem, 'id' | 'created_at'>; Update: Partial<PurchaseRequestItem>; Relationships: [] }
     }
     Views: {
       stock_totals: { Row: StockTotal; Relationships: [] }
       stock_by_location: { Row: StockByLocation; Relationships: [] }
+      supplier_item_history: { Row: SupplierItemHistory; Relationships: [] }
     }
     Functions: {
       create_movement: {
@@ -181,6 +230,7 @@ export interface Database {
           p_reference_number?: string
           p_responsible_id?: string
           p_supplier?: string
+          p_recipient_name?: string
         }
         Returns: string
       }

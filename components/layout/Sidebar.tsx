@@ -12,22 +12,34 @@ import {
   Settings,
   LogOut,
   Package2,
+  ShoppingCart,
+  Route,
+  ClipboardList,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import type { UserRole } from "@/types/database"
 
-const navItems = [
+const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/movements/new", label: "Nuevo movimiento", icon: ArrowLeftRight, highlight: true },
-  { href: "/items", label: "Stock", icon: Package },
+  { href: "/items", label: "Inventario", icon: Package },
   { href: "/locations", label: "Ubicaciones", icon: MapPin },
-  { href: "/movements", label: "Historial", icon: BarChart2 },
   { href: "/cash", label: "Caja chica", icon: Wallet },
   { href: "/reports", label: "Reportes", icon: BarChart2 },
 ]
 
-export function Sidebar() {
+const comprasNavItems = [
+  { href: "/compras", label: "Pedidos", icon: ClipboardList },
+  { href: "/compras/ruta", label: "Ruta de compra", icon: Route },
+]
+
+interface SidebarProps {
+  role: UserRole
+}
+
+export function Sidebar({ role }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -50,7 +62,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 py-4 space-y-1 px-2">
-        {navItems.map(({ href, label, icon: Icon, highlight }) => {
+        {mainNavItems.map(({ href, label, icon: Icon, highlight }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href) && href !== "/movements/new")
           return (
             <Link
@@ -68,6 +80,33 @@ export function Sidebar() {
             </Link>
           )
         })}
+
+        {/* Sección Compras — solo admin/supervisor */}
+        {(role === "admin" || role === "supervisor") && (
+          <>
+            <div className="pt-3 pb-1 px-3">
+              <p className="text-[10px] uppercase tracking-wider text-sidebar-foreground/40 font-medium">Compras</p>
+            </div>
+            {comprasNavItems.map(({ href, label, icon: Icon }) => {
+              const active = pathname === href || pathname.startsWith(href + "/")
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                    active
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </Link>
+              )
+            })}
+          </>
+        )}
       </nav>
 
       {/* Footer */}
