@@ -1,12 +1,15 @@
 "use client"
 
+import React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { LayoutDashboard, Wallet, Search, ArrowLeftRight, BarChart2, ShoppingCart, ClipboardList } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { UserRole } from "@/types/database"
 
-const adminTabs = [
+type NavTab = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; highlight?: boolean }
+
+const adminTabs: NavTab[] = [
   { href: "/dashboard", label: "Inicio", icon: LayoutDashboard },
   { href: "/cash", label: "Caja", icon: Wallet },
   { href: "/buscar", label: "Buscar", icon: Search },
@@ -14,7 +17,7 @@ const adminTabs = [
   { href: "/compras", label: "Compras", icon: ShoppingCart },
 ]
 
-const workerTabs = [
+const workerTabs: NavTab[] = [
   { href: "/pedidos", label: "Mis pedidos", icon: ClipboardList },
   { href: "/pedidos/nuevo", label: "Nuevo pedido", icon: ArrowLeftRight, highlight: true },
 ]
