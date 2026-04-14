@@ -183,7 +183,7 @@ export default async function DashboardPage() {
                         {mov.type === 'entrada' && dest && ` → ${dest.name}`}
                         {mov.type === 'salida' && origin && ` ← ${origin.name}`}
                         {mov.type === 'transferencia' && origin && dest && ` ${origin.name} → ${dest.name}`}
-                        {' · '}{new Date(mov.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        {' · '}{new Date(mov.created_at).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                     <span className="text-sm font-semibold tabular-nums shrink-0">{mov.quantity} {item?.unit}</span>

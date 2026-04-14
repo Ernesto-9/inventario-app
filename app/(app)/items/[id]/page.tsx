@@ -168,7 +168,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {new Date(mov.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(mov.created_at).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         {(mov.responsible as { full_name: string } | null)?.full_name && ` · ${(mov.responsible as { full_name: string }).full_name}`}
                       </p>
                     </div>

@@ -80,7 +80,7 @@ function fmt(n: number) {
 }
 
 function fmtDate(d: string, opts?: Intl.DateTimeFormatOptions) {
-  return new Date(d).toLocaleDateString('es-MX', opts ?? { day: '2-digit', month: 'short', year: 'numeric' })
+  return new Date(d).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', ...(opts ?? { day: '2-digit', month: 'short', year: 'numeric' }) })
 }
 
 type AppView = 'main' | 'cycles' | 'cycle-detail'
