@@ -604,7 +604,41 @@ export default function NewMovementPage() {
                   </div>
 
                   {/* Cantidad + costo */}
-                  <div className={`grid gap-2 ${form.type === 'entrada' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {form.type === 'entrada' ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-[90px_1fr] gap-2">
+                        <Select value={row.unit} onValueChange={v => updateRow(row.rowId, { unit: v })}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pieza">Pieza</SelectItem>
+                            <SelectItem value="metro">Metro</SelectItem>
+                            <SelectItem value="kilo">Kilo</SelectItem>
+                            {!['pieza', 'metro', 'kilo'].includes(row.unit) && row.unit && (
+                              <SelectItem value={row.unit}>{row.unit}</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          placeholder="Cantidad"
+                          value={row.quantity}
+                          onChange={e => updateRow(row.rowId, { quantity: e.target.value })}
+                        />
+                      </div>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="$ Costo unit."
+                        value={row.unit_cost}
+                        onChange={e => updateRow(row.rowId, { unit_cost: e.target.value })}
+                      />
+                    </div>
+                  ) : (
                     <div>
                       <Input
                         type="number"
@@ -620,17 +654,7 @@ export default function NewMovementPage() {
                         </p>
                       )}
                     </div>
-                    {form.type === 'entrada' && (
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="$ Costo unit."
-                        value={row.unit_cost}
-                        onChange={e => updateRow(row.rowId, { unit_cost: e.target.value })}
-                      />
-                    )}
-                  </div>
+                  )}
                 </div>
               ))}
 
