@@ -140,6 +140,7 @@ export default function NewMovementPage() {
     responsible_id: '',
     supplier: '',
     recipient_name: '',
+    ticket_total: '',
   })
 
   const update = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }))
@@ -437,14 +438,16 @@ export default function NewMovementPage() {
 
     // Cash deduction for entradas
     if (form.type === 'entrada' && movementIds.length > 0) {
-      const totalCost = validRows.reduce((sum, r) => sum + (parseFloat(r.quantity) || 0) * (parseFloat(r.unit_cost) || 0), 0)
-      if (totalCost > 0) {
+      const sumOfCosts = validRows.reduce((sum, r) => sum + (parseFloat(r.quantity) || 0) * (parseFloat(r.unit_cost) || 0), 0)
+      const ticketTotalVal = form.ticket_total ? parseFloat(form.ticket_total) : 0
+      const cashAmount = ticketTotalVal > 0 ? ticketTotalVal : sumOfCosts
+      if (cashAmount > 0) {
         const { data: activeFunds } = await supabase.from("cash_funds").select("id").eq("is_active", true).limit(1)
         if (activeFunds?.length) {
           await supabase.from("cash_transactions").insert({
             fund_id: (activeFunds[0] as { id: string }).id,
             type: 'gasto',
-            amount: totalCost,
+            amount: cashAmount,
             description: `Compra (${movementIds.length} artículo${movementIds.length > 1 ? 's' : ''})`,
             movement_id: movementIds[0],
             created_by: currentUserId,
@@ -770,11 +773,56 @@ export default function NewMovementPage() {
                     <Label htmlFor="ref">No. Factura / Remisión</Label>
                     <Input id="ref" placeholder="FAC-001" value={form.reference_number} onChange={e => update('reference_number', e.target.value)} />
                   </div>
-                  {totalCost > 0 && (
-                    <p className="text-xs text-muted-foreground bg-muted/30 rounded px-2 py-1">
-                      Se descontarán <strong>${totalCost.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong> de caja chica automáticamente.
-                    </p>
-                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="ticket_total">Total del ticket <span className="text-muted-foreground font-normal">(lo que se pagó)</span></Label>
+                    <Input
+                      id="ticket_total"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="$ Total pagado al proveedor"
+                      value={form.ticket_total}
+                      onChange={e => update('ticket_total', e.target.value)}
+                    />
+                  </div>
+                  {totalCost > 0 && (() => {
+                    const ticketTotalVal = form.ticket_total ? parseFloat(form.ticket_total) : 0
+                    const effectiveTotal = ticketTotalVal > 0 ? ticketTotalVal : totalCost
+                    const discount = ticketTotalVal > 0 && ticketTotalVal < totalCost ? totalCost - ticketTotalVal : 0
+                    const extra = ticketTotalVal > 0 && ticketTotalVal > totalCost ? ticketTotalVal - totalCost : 0
+                    return (
+                      <div className="text-xs bg-muted/30 rounded px-3 py-2 space-y-1">
+                        {ticketTotalVal > 0 && ticketTotalVal !== totalCost && (
+                          <>
+                            <div className="flex justify-between text-muted-foreground">
+                              <span>Suma por artículos</span>
+                              <span>${totalCost.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            {discount > 0 && (
+                              <div className="flex justify-between text-green-600">
+                                <span>Descuento en ticket</span>
+                                <span>−${discount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            {extra > 0 && (
+                              <div className="flex justify-between text-orange-500">
+                                <span>Cargos extra</span>
+                                <span>+${extra.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            <div className="border-t border-muted-foreground/20 my-1" />
+                          </>
+                        )}
+                        <div className="flex justify-between font-medium">
+                          <span>Se descontarán de caja chica</span>
+                          <strong>${effectiveTotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong>
+                        </div>
+                        {discount > 0 && (
+                          <p className="text-muted-foreground text-[11px] mt-0.5">Los precios unitarios son referencia; el descuento no se distribuye.</p>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </>
               )}
 
