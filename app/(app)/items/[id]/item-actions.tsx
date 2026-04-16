@@ -17,6 +17,13 @@ interface Category {
   color: string | null
 }
 
+interface StockEntry {
+  id: string
+  location_id: string
+  location_name: string
+  quantity: number
+}
+
 interface ItemActionsProps {
   item: {
     id: string
@@ -30,9 +37,10 @@ interface ItemActionsProps {
     aliases?: string | null
   }
   categories: Category[]
+  stockData: StockEntry[]
 }
 
-export function ItemActions({ item, categories }: ItemActionsProps) {
+export function ItemActions({ item, categories, stockData }: ItemActionsProps) {
   const supabase = createClient()
   const router = useRouter()
 
@@ -40,6 +48,10 @@ export function ItemActions({ item, categories }: ItemActionsProps) {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
+
+  const [stockEdits, setStockEdits] = useState<Record<string, string>>(
+    Object.fromEntries(stockData.map(s => [s.id, String(s.quantity)]))
+  )
 
   const [form, setForm] = useState({
     name: item.name,
@@ -55,6 +67,7 @@ export function ItemActions({ item, categories }: ItemActionsProps) {
   async function handleSave() {
     if (!form.name.trim()) return
     setEditLoading(true)
+
     const { error } = await supabase.from("items").update({
       name: form.name.trim(),
       variant_info: form.variant_info.trim() || null,
@@ -65,8 +78,29 @@ export function ItemActions({ item, categories }: ItemActionsProps) {
       description: form.description.trim() || null,
       aliases: form.aliases.trim() || null,
     }).eq("id", item.id)
+
+    if (error) {
+      setEditLoading(false)
+      toast({ title: "Error al guardar", variant: "destructive" })
+      return
+    }
+
+    // Actualizar stock por ubicación
+    const stockUpdates = stockData
+      .filter(s => parseFloat(stockEdits[s.id] ?? String(s.quantity)) !== s.quantity)
+      .map(s => supabase.from("stock").update({ quantity: parseFloat(stockEdits[s.id]) || 0 }).eq("id", s.id))
+
+    if (stockUpdates.length > 0) {
+      const results = await Promise.all(stockUpdates)
+      const stockError = results.find(r => r.error)?.error
+      if (stockError) {
+        setEditLoading(false)
+        toast({ title: "Error al actualizar stock", variant: "destructive" })
+        return
+      }
+    }
+
     setEditLoading(false)
-    if (error) { toast({ title: "Error al guardar", variant: "destructive" }); return }
     toast({ title: "Artículo actualizado" })
     setEditOpen(false)
     router.refresh()
@@ -121,6 +155,25 @@ export function ItemActions({ item, categories }: ItemActionsProps) {
               <Label>Stock mínimo</Label>
               <Input type="number" min="0" value={form.min_stock} onChange={e => setForm(f => ({ ...f, min_stock: e.target.value }))} />
             </div>
+            {stockData.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Stock por ubicación</Label>
+                <div className="space-y-2">
+                  {stockData.map(s => (
+                    <div key={s.id} className="flex items-center gap-2">
+                      <span className="text-sm flex-1 truncate text-muted-foreground">{s.location_name}</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        className="w-24 text-right"
+                        value={stockEdits[s.id] ?? String(s.quantity)}
+                        onChange={e => setStockEdits(prev => ({ ...prev, [s.id]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Categoría</Label>
               <Select value={form.category_id || "__none__"} onValueChange={v => setForm(f => ({ ...f, category_id: v === "__none__" ? "" : v }))}>

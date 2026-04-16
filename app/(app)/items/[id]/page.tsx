@@ -80,6 +80,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                 aliases: (item as { aliases?: string | null }).aliases,
               }}
               categories={(categories ?? []) as { id: string; name: string; color: string | null }[]}
+              stockData={(stockData ?? []) as { id: string; location_id: string; location_name: string; quantity: number }[]}
             />
           )}
           <Button asChild size="sm">
