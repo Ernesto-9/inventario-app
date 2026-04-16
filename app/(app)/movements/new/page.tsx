@@ -80,7 +80,6 @@ const allMovementTypes: { value: MovementType; label: string; description: strin
   { value: 'entrada', label: 'Entrada', description: 'Llega mercancía al inventario' },
   { value: 'salida', label: 'Salida', description: 'Sale del inventario (consumo/uso)' },
   { value: 'transferencia', label: 'Transferencia', description: 'Se mueve entre ubicaciones' },
-  { value: 'ajuste', label: 'Ajuste', description: 'Corrección de inventario (solo admin)' },
 ]
 
 export default function NewMovementPage() {
@@ -147,14 +146,18 @@ export default function NewMovementPage() {
   const isMultiType = form.type === 'entrada' || form.type === 'salida'
 
   const loadData = useCallback(async () => {
-    const [itemsRes, locationsRes, profilesRes, userRes, suppliersRes] = await Promise.all([
-      supabase.from("items").select("id, name, unit, sku, variant_info, aliases").eq("is_active", true).order("name"),
+    // Intentar con variant_info; si falla (columna no existe aún), reintentar sin ella
+    let itemsQuery = await supabase.from("items").select("id, name, unit, sku, variant_info, aliases").eq("is_active", true).order("name")
+    if (itemsQuery.error) {
+      itemsQuery = await supabase.from("items").select("id, name, unit, sku").eq("is_active", true).order("name")
+    }
+    const [locationsRes, profilesRes, userRes, suppliersRes] = await Promise.all([
       supabase.from("locations").select("id, name, type").eq("is_active", true).order("name"),
       supabase.from("profiles").select("id, full_name, role").order("full_name"),
       supabase.auth.getUser(),
       supabase.from("movements").select("supplier").not("supplier", "is", null),
     ])
-    setItems((itemsRes.data as ItemWithStock[]) ?? [])
+    setItems((itemsQuery.data as ItemWithStock[]) ?? [])
     setLocations((locationsRes.data as Location[]) ?? [])
     setProfiles((profilesRes.data as Profile[]) ?? [])
     const uniqueSuppliers = [...new Set(
@@ -172,8 +175,8 @@ export default function NewMovementPage() {
       }
     }
     const preItemId = searchParams.get('item')
-    if (preItemId && itemsRes.data) {
-      const preItem = (itemsRes.data as ItemWithStock[]).find(i => i.id === preItemId)
+    if (preItemId && itemsQuery.data) {
+      const preItem = (itemsQuery.data as ItemWithStock[]).find(i => i.id === preItemId)
       if (preItem) {
         setItemRows([makeRow({
           item_id: preItem.id,
@@ -371,7 +374,9 @@ export default function NewMovementPage() {
 
     for (const row of validRows) {
       let itemId = row.item_id
-      if (row.is_new) {
+      // Si el usuario escribió texto sin seleccionar ni clicar "+Crear", tratarlo como nuevo artículo
+      const treatAsNew = row.is_new || (!row.item_id && row.item_name.trim() !== '')
+      if (treatAsNew) {
         const { data: newItem, error: itemError } = await supabase.from("items").insert({
           name: row.item_name.trim(),
           variant_info: row.variant_info.trim() || null,
@@ -460,7 +465,7 @@ export default function NewMovementPage() {
     if (form.type === 'salida' && !form.recipient_name.trim()) return setError("Indica a quién se le entrega")
     if (form.type === 'entrada' && !form.supplier.trim()) return setError("El proveedor es obligatorio para entradas")
 
-    if (validRows.some(r => r.is_new)) {
+    if (validRows.some(r => r.is_new || (!r.item_id && r.item_name.trim() !== ''))) {
       setShowNewItemsDialog(true)
       return
     }
@@ -540,7 +545,7 @@ export default function NewMovementPage() {
                       className="pl-9"
                       placeholder="Buscar artículo por nombre o SKU..."
                       value={row.search}
-                      onChange={e => updateRow(row.rowId, { search: e.target.value, showDropdown: true, item_id: null, is_new: false })}
+                      onChange={e => updateRow(row.rowId, { search: e.target.value, item_name: e.target.value, showDropdown: true, item_id: null, is_new: false })}
                       onFocus={() => updateRow(row.rowId, { showDropdown: true })}
                       onBlur={() => setTimeout(() => updateRow(row.rowId, { showDropdown: false }), 150)}
                     />
