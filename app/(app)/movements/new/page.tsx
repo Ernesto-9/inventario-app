@@ -147,17 +147,18 @@ export default function NewMovementPage() {
 
   const loadData = useCallback(async () => {
     // Intentar con variant_info; si falla (columna no existe aún), reintentar sin ella
-    let itemsQuery = await supabase.from("items").select("id, name, unit, sku, variant_info, aliases").eq("is_active", true).order("name")
-    if (itemsQuery.error) {
-      itemsQuery = await supabase.from("items").select("id, name, unit, sku").eq("is_active", true).order("name")
-    }
+    const itemsRes1 = await supabase.from("items").select("id, name, unit, sku, variant_info, aliases").eq("is_active", true).order("name")
+    const itemsRes2 = itemsRes1.error
+      ? await supabase.from("items").select("id, name, unit, sku").eq("is_active", true).order("name")
+      : null
+    const itemsData: ItemWithStock[] = ((itemsRes2 ?? itemsRes1).data as ItemWithStock[]) ?? []
     const [locationsRes, profilesRes, userRes, suppliersRes] = await Promise.all([
       supabase.from("locations").select("id, name, type").eq("is_active", true).order("name"),
       supabase.from("profiles").select("id, full_name, role").order("full_name"),
       supabase.auth.getUser(),
       supabase.from("movements").select("supplier").not("supplier", "is", null),
     ])
-    setItems((itemsQuery.data as ItemWithStock[]) ?? [])
+    setItems(itemsData)
     setLocations((locationsRes.data as Location[]) ?? [])
     setProfiles((profilesRes.data as Profile[]) ?? [])
     const uniqueSuppliers = [...new Set(
@@ -175,8 +176,8 @@ export default function NewMovementPage() {
       }
     }
     const preItemId = searchParams.get('item')
-    if (preItemId && itemsQuery.data) {
-      const preItem = (itemsQuery.data as ItemWithStock[]).find(i => i.id === preItemId)
+    if (preItemId && itemsData.length > 0) {
+      const preItem = itemsData.find(i => i.id === preItemId)
       if (preItem) {
         setItemRows([makeRow({
           item_id: preItem.id,
