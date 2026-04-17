@@ -1,11 +1,18 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { NextRequest, NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
 
 const client = new Anthropic()
 
 export async function POST(request: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "API key de IA no configurada" }, { status: 503 })
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
   try {
@@ -22,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
+      max_tokens: 4096,
       messages: [
         {
           role: "user",
@@ -68,8 +75,10 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional:
 
     const text = response.content[0].type === "text" ? response.content[0].text : ""
 
-    // Extract JSON from response (remove markdown code blocks if present)
-    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    // Extract JSON: first try code blocks, then fall back to bare object
+    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+    const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : text.trim()
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
       return NextResponse.json({ error: "No se pudo leer el ticket" }, { status: 422 })
     }

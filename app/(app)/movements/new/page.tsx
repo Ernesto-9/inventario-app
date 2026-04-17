@@ -283,8 +283,8 @@ export default function NewMovementPage() {
         _quantity: String(i.quantity),
         _unit_cost: String(i.unit_cost),
       })))
-    } catch {
-      setScanError('Error al leer la imagen')
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : 'Error al leer la imagen')
     }
     setScanning(false)
   }
