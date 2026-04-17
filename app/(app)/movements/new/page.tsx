@@ -963,7 +963,7 @@ export default function NewMovementPage() {
                     <ScanLine className="h-4 w-4" />
                     Escanear con IA
                   </div>
-                  <input id="scan-upload" type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanComprobante} />
+                  <input id="scan-upload" type="file" accept="image/*" className="hidden" onChange={handleScanComprobante} />
                 </Label>
 
                 <Label htmlFor="doc-upload" className="cursor-pointer">
