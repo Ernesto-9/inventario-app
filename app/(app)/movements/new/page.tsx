@@ -113,6 +113,7 @@ export default function NewMovementPage() {
   const [scanError, setScanError] = useState<string | null>(null)
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([])
   const [scannedSupplier, setScannedSupplier] = useState("")
+  const [scannedTicketTotal, setScannedTicketTotal] = useState("")
 
   const [linkingIdx, setLinkingIdx] = useState<number | null>(null)
   const [linkSearch, setLinkSearch] = useState("")
@@ -241,40 +242,50 @@ export default function NewMovementPage() {
     if (!file) return
     e.target.value = ''
 
-    const processedFile = file.type.startsWith('image/')
-      ? await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1920 })
-      : file
-    const preview = file.type.startsWith('image/') ? URL.createObjectURL(processedFile) : ''
-    setFiles(prev => [...prev, { file: processedFile, preview, type: 'foto', name: file.name }])
-
-    // Trigger AI only for entrada or when type not yet selected
-    const shouldScanAI = form.type === 'entrada' || form.type === ''
-    if (!shouldScanAI) return
-
     setScanning(true)
     setScanError(null)
     setScannerOpen(true)
+
     try {
+      let processedFile: File = file
+      let compressionFailed = false
+      if (file.type.startsWith('image/')) {
+        try {
+          processedFile = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1920 })
+        } catch (compErr) {
+          compressionFailed = true
+          processedFile = file
+          console.warn('imageCompression falló, usando original:', compErr)
+        }
+      }
+      const preview = processedFile.type.startsWith('image/') ? URL.createObjectURL(processedFile) : ''
+      setFiles(prev => [...prev, { file: processedFile, preview, type: 'foto', name: file.name }])
+
+      const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+      const mediaType = supportedTypes.includes(processedFile.type) ? processedFile.type : 'image/jpeg'
+      const fileInfo = `tipo: ${file.type || 'desconocido'}, tamaño: ${(file.size / 1024).toFixed(0)}KB${compressionFailed ? ', compresión omitida' : ''}`
+
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
         reader.onload = () => resolve((reader.result as string).split(',')[1])
-        reader.onerror = reject
+        reader.onerror = (e) => reject(new Error(`No se pudo leer la imagen (${fileInfo}): ${e}`))
         reader.readAsDataURL(processedFile)
       })
       const existingItems = items.map(i => ({ id: i.id, name: i.name, variant_info: i.variant_info, sku: i.sku }))
       const res = await fetch('/api/parse-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mediaType: processedFile.type, existingItems }),
+        body: JSON.stringify({ imageBase64: base64, mediaType, existingItems }),
       })
       if (!res.ok) {
-        const err = await res.json()
-        setScanError(err.error ?? 'Error al procesar el comprobante')
+        const errBody = await res.json()
+        setScanError(`[${res.status}] ${errBody.error ?? 'Error al procesar el comprobante'} (${fileInfo})`)
         setScanning(false)
         return
       }
       const data = await res.json()
       setScannedSupplier(data.supplier ?? '')
+      setScannedTicketTotal(data.ticket_total ? String(data.ticket_total) : '')
       setScannedItems((data.items ?? []).map((i: ScannedItem) => ({
         ...i,
         is_new: !i.matched_id,
@@ -284,7 +295,8 @@ export default function NewMovementPage() {
         _unit_cost: String(i.unit_cost),
       })))
     } catch (err) {
-      setScanError(err instanceof Error ? err.message : 'Error al leer la imagen')
+      const msg = err instanceof Error ? err.message : String(err)
+      setScanError(`Error al escanear: ${msg}`)
     }
     setScanning(false)
   }
@@ -342,9 +354,11 @@ export default function NewMovementPage() {
       return nonEmpty.length ? [...nonEmpty, ...newRows] : newRows
     })
     if (scannedSupplier) setForm(f => ({ ...f, supplier: scannedSupplier, type: f.type || 'entrada' }))
+    if (scannedTicketTotal) setForm(f => ({ ...f, ticket_total: scannedTicketTotal }))
     setScannerOpen(false)
     setScannedItems([])
     setScannedSupplier("")
+    setScannedTicketTotal("")
     setLinkingIdx(null)
   }
 
@@ -370,6 +384,12 @@ export default function NewMovementPage() {
   async function doSubmit() {
     setLoading(true)
     setError(null)
+
+    if (!currentUserId) {
+      setError("No se pudo identificar tu sesión. Recarga la página e intenta de nuevo.")
+      setLoading(false)
+      return
+    }
 
     const validRows = itemRows.filter(r => (r.item_id || r.item_name.trim()) && r.quantity && parseFloat(r.quantity) > 0)
     const movementIds: string[] = []
@@ -958,13 +978,15 @@ export default function NewMovementPage() {
                   <input id="photo-upload" type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={handlePhotoUpload} />
                 </Label>
 
-                <Label htmlFor="scan-upload" className="cursor-pointer">
-                  <div className="flex items-center gap-2 rounded-md border border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-sm text-primary hover:bg-primary/10 transition-colors">
-                    <ScanLine className="h-4 w-4" />
-                    Escanear con IA
-                  </div>
-                  <input id="scan-upload" type="file" accept="image/*" className="hidden" onChange={handleScanComprobante} />
-                </Label>
+                {form.type === 'entrada' && (
+                  <Label htmlFor="scan-upload" className="cursor-pointer">
+                    <div className="flex items-center gap-2 rounded-md border border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-sm text-primary hover:bg-primary/10 transition-colors">
+                      <ScanLine className="h-4 w-4" />
+                      Escanear con IA
+                    </div>
+                    <input id="scan-upload" type="file" accept="image/*" className="hidden" onChange={handleScanComprobante} />
+                  </Label>
+                )}
 
                 <Label htmlFor="doc-upload" className="cursor-pointer">
                   <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors">

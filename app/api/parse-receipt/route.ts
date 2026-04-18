@@ -17,11 +17,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { imageBase64, mediaType, existingItems } = body as {
+    const { imageBase64, mediaType: rawMediaType, existingItems } = body as {
       imageBase64: string
       mediaType: string
       existingItems: { id: string; name: string; variant_info?: string; sku?: string }[]
     }
+    const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const
+    type SupportedType = typeof supported[number]
+    const mediaType: SupportedType = (supported as readonly string[]).includes(rawMediaType)
+      ? rawMediaType as SupportedType
+      : 'image/jpeg'
 
     const existingList = existingItems.length > 0
       ? `Artículos existentes en el inventario (intenta hacer match con estos cuando sea posible):\n${existingItems.map(i => `- ID: ${i.id} | Nombre: ${i.name}${i.variant_info ? ` — ${i.variant_info}` : ''}${i.sku ? ` (SKU: ${i.sku})` : ''}`).join('\n')}`
@@ -38,7 +43,7 @@ export async function POST(request: NextRequest) {
               type: "image",
               source: {
                 type: "base64",
-                media_type: mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+                media_type: mediaType,
                 data: imageBase64,
               },
             },
@@ -54,9 +59,16 @@ Para cada artículo en el ticket:
 3. Si no coincide, propón un nombre genérico (ej: "Tornillo") y una especificación (ej: "M6 × 20mm, Zinc")
 4. Usa español para todos los nombres
 
+Para "ticket_total": busca el monto FINAL del ticket — el que se pagó en caja.
+- Debe ser el valor más alto etiquetado como "TOTAL", "TOTAL A PAGAR", "IMPORTE TOTAL" o similar
+- NO uses "Subtotal", "IVA", "Descuento" ni ningún monto parcial
+- Si el ticket tiene IVA separado, el total YA lo incluye — usa ese número, no el subtotal
+- Si no encuentras un total claro, usa null
+
 Responde ÚNICAMENTE con JSON válido, sin texto adicional:
 {
   "supplier": "nombre del proveedor/tienda",
+  "ticket_total": 0.00,
   "items": [
     {
       "matched_id": "uuid-si-coincide-o-null",

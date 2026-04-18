@@ -101,7 +101,7 @@ export default function CashPage() {
   const [newFundDialog, setNewFundDialog] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  const [depositForm, setDepositForm] = useState({ fund_id: "", amount: "", description: "" })
+  const [depositForm, setDepositForm] = useState({ fund_id: "", amount: "", description: "", custom_date: "" })
   const [gastoForm, setGastoForm] = useState({ fund_id: "", amount: "", description: "", reference_number: "", category: "" })
   const [newFundForm, setNewFundForm] = useState({ name: "", description: "" })
 
@@ -141,15 +141,19 @@ export default function CashPage() {
     e.preventDefault()
     if (!depositForm.fund_id || !depositForm.amount || !depositForm.description) return
     setSubmitting(true)
-    const { error } = await supabase.from("cash_transactions").insert({
+    const payload: Record<string, unknown> = {
       fund_id: depositForm.fund_id, type: "depósito",
       amount: parseFloat(depositForm.amount), description: depositForm.description, created_by: currentUserId,
-    })
+    }
+    if (isAdmin && depositForm.custom_date) {
+      payload.created_at = new Date(depositForm.custom_date).toISOString()
+    }
+    const { error } = await supabase.from("cash_transactions").insert(payload)
     setSubmitting(false)
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return }
     toast({ title: "Fondos agregados" })
     setDepositDialog(false)
-    setDepositForm({ fund_id: "", amount: "", description: "" })
+    setDepositForm({ fund_id: "", amount: "", description: "", custom_date: "" })
     loadData()
   }
 
@@ -189,43 +193,71 @@ export default function CashPage() {
   function handlePrint(cycle: CycleData) {
     const w = window.open('', '_blank')
     if (!w) return
-    const rows = cycle.gastos.map((g, i) => `
-      <tr>
-        <td style="text-align:center">${i + 1}</td>
+
+    let runningBalance = 0
+    const printRows: string[] = []
+
+    if (cycle.carryover > 0) {
+      runningBalance += cycle.carryover
+      printRows.push(`<tr>
+        <td>${fmtDate(cycle.startDate, { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+        <td>Saldo anterior</td><td></td><td></td>
+        <td style="text-align:right;color:#16a34a">${fmt(cycle.carryover)}</td>
+        <td></td>
+        <td style="text-align:right">${fmt(runningBalance)}</td>
+      </tr>`)
+    }
+
+    runningBalance += cycle.deposit.amount
+    printRows.push(`<tr style="background:#f9fafb">
+      <td>${fmtDate(cycle.deposit.created_at, { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+      <td><strong>${cycle.deposit.description}</strong></td><td></td><td></td>
+      <td style="text-align:right;color:#16a34a"><strong>${fmt(cycle.deposit.amount)}</strong></td>
+      <td></td>
+      <td style="text-align:right"><strong>${fmt(runningBalance)}</strong></td>
+    </tr>`)
+
+    cycle.gastos.forEach(g => {
+      runningBalance -= g.amount
+      printRows.push(`<tr>
         <td>${fmtDate(g.created_at, { day: '2-digit', month: 'short' })}</td>
-        <td>${g.movements?.supplier ?? '—'}</td>
         <td>${g.description}</td>
+        <td>${g.movements?.supplier ?? '—'}</td>
         <td>${g.movements?.reference_number ?? g.reference_number ?? '—'}</td>
-        <td style="text-align:right">${fmt(g.amount)}</td>
-      </tr>`).join('')
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Reposición Caja Chica</title>
+        <td></td>
+        <td style="text-align:right;color:#dc2626">${fmt(g.amount)}</td>
+        <td style="text-align:right;color:${runningBalance >= 0 ? '#000' : '#dc2626'}">${fmt(runningBalance)}</td>
+      </tr>`)
+    })
+
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Caja Chica</title>
       <style>
         body{font-family:Arial,sans-serif;padding:24px;font-size:12px;color:#000}
         h2{margin:0 0 2px;font-size:15px}
-        .meta{color:#555;margin-bottom:12px;font-size:11px}
-        .summary{display:flex;gap:20px;margin-bottom:14px;font-size:12px;border-bottom:1px solid #eee;padding-bottom:10px}
+        .meta{color:#555;margin-bottom:14px;font-size:11px}
         table{width:100%;border-collapse:collapse}
-        th{background:#f0f0f0;border:1px solid #ccc;padding:5px 8px;text-align:left;font-size:11px}
+        th{background:#f0f0f0;border:1px solid #ccc;padding:5px 8px;font-size:11px}
         td{border:1px solid #ddd;padding:5px 8px}
-        .totals{margin-top:10px;text-align:right;font-size:12px}
-        .totals .main{font-weight:bold;font-size:13px}
+        tfoot td{background:#f0f0f0;font-weight:bold}
       </style>
     </head><body>
-      <h2>Reposición de Caja Chica</h2>
-      <div class="meta">${fmtDate(cycle.startDate)}${cycle.endDate ? ' — ' + fmtDate(cycle.endDate) : ' (ciclo en curso)'}</div>
-      <div class="summary">
-        <div>Reposición: <strong>${fmt(cycle.deposit.amount)}</strong></div>
-        ${cycle.carryover > 0 ? `<div>+ Saldo anterior: <strong>${fmt(cycle.carryover)}</strong></div>` : ''}
-        <div>Disponible: <strong>${fmt(cycle.available)}</strong></div>
-      </div>
+      <h2>Relación de Gastos — Caja Chica</h2>
+      <div class="meta">${fmtDate(cycle.startDate)}${cycle.endDate ? ' — ' + fmtDate(cycle.endDate) : ' · ciclo en curso'}</div>
       <table>
-        <thead><tr><th>#</th><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>No. Factura</th><th style="text-align:right">Monto</th></tr></thead>
-        <tbody>${rows}</tbody>
+        <thead><tr>
+          <th>Fecha</th><th>Concepto</th><th>Proveedor</th><th>No. Factura</th>
+          <th style="text-align:right">Cargo</th>
+          <th style="text-align:right">Abono</th>
+          <th style="text-align:right">Saldo</th>
+        </tr></thead>
+        <tbody>${printRows.join('')}</tbody>
+        <tfoot><tr>
+          <td colspan="4" style="text-align:right">Total gastado</td>
+          <td style="text-align:right;color:#dc2626">${fmt(cycle.totalSpent)}</td>
+          <td></td>
+          <td style="text-align:right;color:${cycle.remaining >= 0 ? '#16a34a' : '#dc2626'}">${fmt(cycle.remaining)}</td>
+        </tr></tfoot>
       </table>
-      <div class="totals">
-        <div class="main">Total gastado: ${fmt(cycle.totalSpent)}</div>
-        <div style="color:${cycle.remaining >= 0 ? '#16a34a' : '#dc2626'}">Saldo restante: ${fmt(cycle.remaining)}</div>
-      </div>
     </body></html>`)
     w.document.close()
     w.print()
@@ -513,6 +545,13 @@ export default function CashPage() {
               <Input placeholder="Ej: Reposición mensual"
                 value={depositForm.description} onChange={e => setDepositForm(f => ({ ...f, description: e.target.value }))} required />
             </div>
+            {isAdmin && (
+              <div className="space-y-2">
+                <Label>Fecha del depósito <span className="text-muted-foreground font-normal">(opcional — vacío = ahora)</span></Label>
+                <Input type="datetime-local" value={depositForm.custom_date}
+                  onChange={e => setDepositForm(f => ({ ...f, custom_date: e.target.value }))} />
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={submitting}>{submitting ? "Guardando..." : "Agregar fondos"}</Button>
           </form>
         </DialogContent>
