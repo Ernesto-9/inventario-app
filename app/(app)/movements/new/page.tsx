@@ -456,16 +456,21 @@ export default function NewMovementPage() {
       }
     }
 
-    // Cash deduction for entradas
+    // Cash deduction for entradas — only if the current user has a linked fund
     if (form.type === 'entrada' && movementIds.length > 0) {
       const sumOfCosts = validRows.reduce((sum, r) => sum + (parseFloat(r.quantity) || 0) * (parseFloat(r.unit_cost) || 0), 0)
       const ticketTotalVal = form.ticket_total ? parseFloat(form.ticket_total) : 0
       const cashAmount = ticketTotalVal > 0 ? ticketTotalVal : sumOfCosts
       if (cashAmount > 0) {
-        const { data: activeFunds } = await supabase.from("cash_funds").select("id").eq("is_active", true).limit(1)
-        if (activeFunds?.length) {
+        const { data: userFund } = await supabase
+          .from("cash_funds")
+          .select("id")
+          .eq("is_active", true)
+          .eq("user_id", currentUserId)
+          .maybeSingle()
+        if (userFund) {
           await supabase.from("cash_transactions").insert({
-            fund_id: (activeFunds[0] as { id: string }).id,
+            fund_id: userFund.id,
             type: 'gasto',
             amount: cashAmount,
             description: `Compra (${movementIds.length} artículo${movementIds.length > 1 ? 's' : ''})`,

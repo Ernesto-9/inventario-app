@@ -15,6 +15,8 @@ import {
   ShoppingCart,
   Route,
   ClipboardList,
+  Store,
+  FileText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
@@ -33,6 +35,8 @@ const mainNavItems = [
 const comprasNavItems = [
   { href: "/compras", label: "Pedidos", icon: ClipboardList },
   { href: "/compras/ruta", label: "Ruta de compra", icon: Route },
+  { href: "/cotizaciones", label: "Cotizaciones", icon: FileText },
+  { href: "/proveedores", label: "Proveedores", icon: Store },
 ]
 
 interface SidebarProps {

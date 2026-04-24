@@ -18,6 +18,12 @@ interface CashFund {
   balance: number
   description: string | null
   is_active: boolean
+  user_id: string | null
+}
+
+interface Profile {
+  id: string
+  full_name: string
 }
 
 interface CashTransaction {
@@ -89,6 +95,7 @@ export default function CashPage() {
   const supabase = createClient()
   const [funds, setFunds] = useState<CashFund[]>([])
   const [transactions, setTransactions] = useState<CashTransaction[]>([])
+  const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState("")
   const [isAdmin, setIsAdmin] = useState(false)
@@ -103,19 +110,21 @@ export default function CashPage() {
 
   const [depositForm, setDepositForm] = useState({ fund_id: "", amount: "", description: "", custom_date: "" })
   const [gastoForm, setGastoForm] = useState({ fund_id: "", amount: "", description: "", reference_number: "", category: "" })
-  const [newFundForm, setNewFundForm] = useState({ name: "", description: "" })
+  const [newFundForm, setNewFundForm] = useState({ name: "", description: "", user_id: "" })
 
   const loadData = useCallback(async () => {
-    const [fundsRes, txRes, userRes] = await Promise.all([
+    const [fundsRes, txRes, userRes, profilesRes] = await Promise.all([
       supabase.from("cash_funds").select("*").eq("is_active", true).order("name"),
       supabase
         .from("cash_transactions")
         .select("*, movements(supplier, reference_number), cash_funds(name), created_by_profile:created_by(full_name)")
         .order("created_at", { ascending: true }),
       supabase.auth.getUser(),
+      supabase.from("profiles").select("id, full_name").order("full_name"),
     ])
     setFunds((fundsRes.data as CashFund[]) ?? [])
     setTransactions((txRes.data as unknown as CashTransaction[]) ?? [])
+    setProfiles((profilesRes.data as Profile[]) ?? [])
     const uid = userRes.data.user?.id ?? ""
     setCurrentUserId(uid)
     if (uid) {
@@ -180,13 +189,16 @@ export default function CashPage() {
     if (!newFundForm.name) return
     setSubmitting(true)
     const { error } = await supabase.from("cash_funds").insert({
-      name: newFundForm.name, description: newFundForm.description || null, created_by: currentUserId,
+      name: newFundForm.name,
+      description: newFundForm.description || null,
+      user_id: newFundForm.user_id || null,
+      created_by: currentUserId,
     })
     setSubmitting(false)
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return }
     toast({ title: "Fondo creado" })
     setNewFundDialog(false)
-    setNewFundForm({ name: "", description: "" })
+    setNewFundForm({ name: "", description: "", user_id: "" })
     loadData()
   }
 
@@ -460,17 +472,21 @@ export default function CashPage() {
       {funds.length > 0 ? (
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            {funds.map(fund => (
-              <Card key={fund.id}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{fund.name}</p>
-                    {fund.description && <p className="text-xs text-muted-foreground">{fund.description}</p>}
-                  </div>
-                  <p className={`text-lg font-bold ${fund.balance < 0 ? 'text-red-500' : ''}`}>{fmt(fund.balance)}</p>
-                </CardContent>
-              </Card>
-            ))}
+            {funds.map(fund => {
+              const linkedUser = fund.user_id ? profiles.find(p => p.id === fund.user_id) : null
+              return (
+                <Card key={fund.id}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{fund.name}</p>
+                      {linkedUser && <p className="text-xs text-muted-foreground">{linkedUser.full_name}</p>}
+                      {fund.description && <p className="text-xs text-muted-foreground">{fund.description}</p>}
+                    </div>
+                    <p className={`text-lg font-bold ${fund.balance < 0 ? 'text-red-500' : ''}`}>{fmt(fund.balance)}</p>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
           {isAdmin && (
             <button onClick={() => setNewFundDialog(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
@@ -615,6 +631,14 @@ export default function CashPage() {
                 <Label>Nombre</Label>
                 <Input placeholder="Ej: Caja chica obra norte"
                   value={newFundForm.name} onChange={e => setNewFundForm(f => ({ ...f, name: e.target.value }))} required />
+              </div>
+              <div className="space-y-2">
+                <Label>Usuario responsable</Label>
+                <Select value={newFundForm.user_id} onValueChange={v => setNewFundForm(f => ({ ...f, user_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona un usuario" /></SelectTrigger>
+                  <SelectContent>{profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Las entradas de este usuario descontarán de este fondo.</p>
               </div>
               <div className="space-y-2">
                 <Label>Descripción <span className="text-muted-foreground font-normal">(opcional)</span></Label>

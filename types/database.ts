@@ -40,6 +40,7 @@ export interface Item {
   track_stock: boolean
   photo_url: string | null
   variant_info: string | null
+  aliases: string | null
   is_active: boolean
   created_by: string | null
   created_at: string
@@ -106,6 +107,7 @@ export interface CashFund {
   id: string
   name: string
   location_id: string | null
+  user_id: string | null
   balance: number
   description: string | null
   is_active: boolean
@@ -195,6 +197,55 @@ export interface SupplierItemHistory {
   created_at: string
 }
 
+export interface Supplier {
+  id: string
+  name: string
+  phone: string | null
+  whatsapp_phone: string | null
+  notes: string | null
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ItemSupplier {
+  id: string
+  item_id: string
+  supplier_id: string
+  created_at: string
+  // joins
+  items?: Pick<Item, 'id' | 'name' | 'unit'> | null
+  suppliers?: Pick<Supplier, 'id' | 'name' | 'phone' | 'whatsapp_phone'> | null
+}
+
+export type QuotationStatus = 'abierta' | 'cerrada'
+
+export interface Quotation {
+  id: string
+  name: string | null
+  notes: string | null
+  status: QuotationStatus
+  created_by: string
+  created_at: string
+  updated_at: string
+  // joins
+  quotation_items?: QuotationItem[]
+  profiles?: Pick<Profile, 'id' | 'full_name'> | null
+}
+
+export interface QuotationItem {
+  id: string
+  quotation_id: string
+  item_id: string
+  quantity: number
+  unit: string | null
+  notes: string | null
+  created_at: string
+  // joins
+  items?: Pick<Item, 'id' | 'name' | 'unit'> | null
+}
+
 // Generic Supabase Database type (used by createClient)
 export interface Database {
   public: {
@@ -211,6 +262,10 @@ export interface Database {
       cash_transactions: { Row: CashTransaction; Insert: Omit<CashTransaction, 'id' | 'created_at'>; Update: Partial<CashTransaction>; Relationships: [] }
       purchase_requests: { Row: PurchaseRequest; Insert: Omit<PurchaseRequest, 'id' | 'created_at' | 'updated_at'>; Update: Partial<PurchaseRequest>; Relationships: [] }
       purchase_request_items: { Row: PurchaseRequestItem; Insert: Omit<PurchaseRequestItem, 'id' | 'created_at'>; Update: Partial<PurchaseRequestItem>; Relationships: [] }
+      suppliers: { Row: Supplier; Insert: Omit<Supplier, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Supplier>; Relationships: [] }
+      item_suppliers: { Row: ItemSupplier; Insert: Omit<ItemSupplier, 'id' | 'created_at'>; Update: Partial<ItemSupplier>; Relationships: [] }
+      quotations: { Row: Quotation; Insert: Omit<Quotation, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Quotation>; Relationships: [] }
+      quotation_items: { Row: QuotationItem; Insert: Omit<QuotationItem, 'id' | 'created_at'>; Update: Partial<QuotationItem>; Relationships: [] }
     }
     Views: {
       stock_totals: { Row: StockTotal; Relationships: [] }
@@ -235,6 +290,10 @@ export interface Database {
         Returns: string
       }
       get_my_role: { Args: Record<never, never>; Returns: UserRole }
+      admin_clear_stock: {
+        Args: { p_item_id: string; p_location_id: string }
+        Returns: void
+      }
     }
     Enums: {
       location_type: LocationType
