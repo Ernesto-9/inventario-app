@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Wallet, Plus, TrendingDown, TrendingUp, ArrowLeft, Printer, ChevronRight } from "lucide-react"
+import { Wallet, Plus, TrendingDown, TrendingUp, ArrowLeft, Printer, ChevronRight, Trash2 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 
 interface CashFund {
@@ -111,6 +111,7 @@ export default function CashPage() {
   const [depositForm, setDepositForm] = useState({ fund_id: "", amount: "", description: "", custom_date: "" })
   const [gastoForm, setGastoForm] = useState({ fund_id: "", amount: "", description: "", reference_number: "", category: "" })
   const [newFundForm, setNewFundForm] = useState({ name: "", description: "", user_id: "" })
+  const [deleteConfirmTx, setDeleteConfirmTx] = useState<CashTransaction | null>(null)
 
   const loadData = useCallback(async () => {
     const [fundsRes, txRes, userRes, profilesRes] = await Promise.all([
@@ -202,6 +203,15 @@ export default function CashPage() {
     loadData()
   }
 
+  async function handleDeleteTx(tx: CashTransaction) {
+    const { error } = await supabase.from("cash_transactions").delete().eq("id", tx.id)
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return }
+    toast({ title: tx.type === 'depósito' ? "Depósito eliminado" : "Gasto eliminado" })
+    setDeleteConfirmTx(null)
+    if (view === 'cycle-detail') setView('cycles')
+    loadData()
+  }
+
   function handlePrint(cycle: CycleData) {
     const w = window.open('', '_blank')
     if (!w) return
@@ -287,9 +297,16 @@ export default function CashPage() {
             <ArrowLeft className="h-4 w-4" />
             Ciclos
           </button>
-          <Button size="sm" variant="outline" onClick={() => handlePrint(cycle)}>
-            <Printer className="h-4 w-4 mr-1" />Imprimir
-          </Button>
+          <div className="flex gap-2">
+            {isAdmin && (
+              <Button size="sm" variant="outline" className="text-red-500 hover:text-red-600 hover:border-red-300" onClick={() => setDeleteConfirmTx(cycle.deposit)}>
+                <Trash2 className="h-4 w-4 mr-1" />Eliminar depósito
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => handlePrint(cycle)}>
+              <Printer className="h-4 w-4 mr-1" />Imprimir
+            </Button>
+          </div>
         </div>
 
         <div>
@@ -330,6 +347,7 @@ export default function CashPage() {
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Concepto</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">No. Factura</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Monto</th>
+                    {isAdmin && <th className="w-8" />}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -349,19 +367,28 @@ export default function CashPage() {
                       <td className="px-3 py-2.5 text-right font-medium text-red-500 tabular-nums">
                         -{fmt(g.amount)}
                       </td>
+                      {isAdmin && (
+                        <td className="px-2 py-2.5 text-center">
+                          <button onClick={() => setDeleteConfirmTx(g)} className="text-muted-foreground hover:text-red-500 transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className="border-t bg-muted/30">
-                    <td colSpan={5} className="px-3 py-2.5 text-sm font-semibold text-right">Total gastado</td>
+                    <td colSpan={isAdmin ? 5 : 5} className="px-3 py-2.5 text-sm font-semibold text-right">Total gastado</td>
                     <td className="px-3 py-2.5 text-right font-bold text-red-500 tabular-nums">-{fmt(cycle.totalSpent)}</td>
+                    {isAdmin && <td />}
                   </tr>
                   <tr>
-                    <td colSpan={5} className="px-3 py-2 text-xs text-right text-muted-foreground">Saldo restante</td>
+                    <td colSpan={isAdmin ? 5 : 5} className="px-3 py-2 text-xs text-right text-muted-foreground">Saldo restante</td>
                     <td className={`px-3 py-2 text-right font-semibold tabular-nums text-sm ${cycle.remaining >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                       {fmt(cycle.remaining)}
                     </td>
+                    {isAdmin && <td />}
                   </tr>
                 </tfoot>
               </table>
@@ -513,25 +540,28 @@ export default function CashPage() {
           <CardContent className="p-0">
             <div className="divide-y">
               {transactionsDesc.map(tx => (
-                <div key={tx.id} className="flex items-center justify-between px-4 py-3">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className={`rounded-full p-1.5 shrink-0 ${tx.type === 'depósito' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
-                      {tx.type === 'depósito' ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {tx.movements?.supplier ? `${tx.movements.supplier} · ` : ''}{tx.description}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {tx.cash_funds?.name}
-                        {(tx.movements?.reference_number ?? tx.reference_number) && ` · ${tx.movements?.reference_number ?? tx.reference_number}`}
-                        {' · '}{fmtDate(tx.created_at, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
+                <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className={`rounded-full p-1.5 shrink-0 ${tx.type === 'depósito' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
+                    {tx.type === 'depósito' ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                   </div>
-                  <p className={`font-bold tabular-nums ml-3 shrink-0 ${tx.type === 'depósito' ? 'text-green-600' : 'text-red-500'}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">
+                      {tx.movements?.supplier ? `${tx.movements.supplier} · ` : ''}{tx.description}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {tx.cash_funds?.name}
+                      {(tx.movements?.reference_number ?? tx.reference_number) && ` · ${tx.movements?.reference_number ?? tx.reference_number}`}
+                      {' · '}{fmtDate(tx.created_at, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <p className={`font-bold tabular-nums shrink-0 ${tx.type === 'depósito' ? 'text-green-600' : 'text-red-500'}`}>
                     {tx.type === 'depósito' ? '+' : '-'}{fmt(tx.amount)}
                   </p>
+                  {isAdmin && (
+                    <button onClick={() => setDeleteConfirmTx(tx)} className="shrink-0 text-muted-foreground hover:text-red-500 transition-colors ml-1">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -618,6 +648,44 @@ export default function CashPage() {
             </div>
             <Button type="submit" className="w-full" disabled={submitting}>{submitting ? "Guardando..." : "Registrar gasto"}</Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Confirmar eliminación */}
+      <Dialog open={!!deleteConfirmTx} onOpenChange={open => { if (!open) setDeleteConfirmTx(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {deleteConfirmTx?.type === 'depósito' ? 'Eliminar depósito' : 'Eliminar gasto'}
+            </DialogTitle>
+          </DialogHeader>
+          {deleteConfirmTx && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/40 px-4 py-3 text-sm space-y-1">
+                <p className="font-medium">{deleteConfirmTx.description}</p>
+                <p className="text-muted-foreground">
+                  {fmtDate(deleteConfirmTx.created_at, { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {' · '}
+                  <span className={deleteConfirmTx.type === 'depósito' ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>
+                    {deleteConfirmTx.type === 'depósito' ? '+' : '-'}{fmt(deleteConfirmTx.amount)}
+                  </span>
+                </p>
+              </div>
+              {deleteConfirmTx.type === 'depósito' && (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                  Al eliminar este depósito se recalcula el saldo del fondo. Los gastos del ciclo permanecen y quedarán sin depósito asociado.
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirmTx(null)}>
+                  Cancelar
+                </Button>
+                <Button variant="destructive" className="flex-1" onClick={() => handleDeleteTx(deleteConfirmTx)}>
+                  Eliminar
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
