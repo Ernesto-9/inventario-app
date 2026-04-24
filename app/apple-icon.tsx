@@ -13,10 +13,60 @@ export default function AppleIcon() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontSize: 100,
       }}
     >
-      📦
+      {/* Box body */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 0,
+        }}
+      >
+        {/* Lid */}
+        <div
+          style={{
+            width: 98,
+            height: 21,
+            background: '#f97316',
+            borderRadius: '6px 6px 0 0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: 28,
+              height: 7,
+              background: '#ea6c0a',
+              borderRadius: 2,
+            }}
+          />
+        </div>
+        {/* Body */}
+        <div
+          style={{
+            width: 98,
+            height: 77,
+            background: '#fb923c',
+            borderRadius: '0 0 6px 6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: 21,
+              height: 42,
+              background: '#ea6c0a',
+              borderRadius: 2,
+            }}
+          />
+        </div>
+      </div>
     </div>,
     { ...size }
   )
