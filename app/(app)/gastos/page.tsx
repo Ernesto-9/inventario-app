@@ -161,14 +161,16 @@ function GastoTable({
 export default async function GastosPage({ searchParams }: PageProps) {
   const params = await searchParams
   const now = new Date()
-  const mes = params.mes ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+  const currentMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+  const rawMes = params.mes ?? currentMes
+  const mes = /^\d{4}-\d{2}$/.test(rawMes) ? rawMes : currentMes
 
   const [yearStr, monthStr] = mes.split("-")
   const year = parseInt(yearStr)
   const month = parseInt(monthStr)
 
-  const startDate = `${year}-${String(month).padStart(2, "0")}-01T00:00:00.000Z`
-  const endDate = new Date(year, month, 1).toISOString()
+  const startDate = new Date(Date.UTC(year, month - 1, 1)).toISOString()
+  const endDate = new Date(Date.UTC(year, month, 1)).toISOString()
 
   const supabase = await createClient()
 
