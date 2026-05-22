@@ -1,8 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
 import { MonthSelector } from "@/components/gastos/MonthSelector"
+import { TabSelector } from "@/components/gastos/TabSelector"
+
+const VALID_TABS = ["IPC", "Empresarial", "Arrendamiento", "Acumulado"] as const
+type TabKey = typeof VALID_TABS[number]
 
 interface PageProps {
-  searchParams: Promise<{ mes?: string }>
+  searchParams: Promise<{ mes?: string; tab?: string }>
 }
 
 const RAZON_COLORS = {
@@ -164,6 +168,7 @@ export default async function GastosPage({ searchParams }: PageProps) {
   const currentMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
   const rawMes = params.mes ?? currentMes
   const mes = /^\d{4}-\d{2}$/.test(rawMes) ? rawMes : currentMes
+  const tab: TabKey = (VALID_TABS as readonly string[]).includes(params.tab ?? "") ? params.tab as TabKey : "IPC"
 
   const [yearStr, monthStr] = mes.split("-")
   const year = parseInt(yearStr)
@@ -200,7 +205,7 @@ export default async function GastosPage({ searchParams }: PageProps) {
   const arrendamiento = rows.filter((r) => r.razon_social === "Arrendamiento")
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Gastos</h1>
@@ -209,10 +214,12 @@ export default async function GastosPage({ searchParams }: PageProps) {
         <MonthSelector mes={mes} />
       </div>
 
-      <GastoTable label="IPC" rows={ipc} colorKey="IPC" />
-      <GastoTable label="Empresarial" rows={empresarial} colorKey="Empresarial" />
-      <GastoTable label="Arrendamiento" rows={arrendamiento} colorKey="Arrendamiento" />
-      <GastoTable label="Acumulado" rows={rows} showRazonSocial colorKey="Acumulado" />
+      <TabSelector tab={tab} mes={mes} />
+
+      {tab === "IPC" && <GastoTable label="IPC" rows={ipc} colorKey="IPC" />}
+      {tab === "Empresarial" && <GastoTable label="Empresarial" rows={empresarial} colorKey="Empresarial" />}
+      {tab === "Arrendamiento" && <GastoTable label="Arrendamiento" rows={arrendamiento} colorKey="Arrendamiento" />}
+      {tab === "Acumulado" && <GastoTable label="Acumulado" rows={rows} showRazonSocial colorKey="Acumulado" />}
     </div>
   )
 }
