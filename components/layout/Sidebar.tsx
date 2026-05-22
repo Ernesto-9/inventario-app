@@ -17,6 +17,7 @@ import {
   ClipboardList,
   Store,
   FileText,
+  Receipt,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
@@ -30,6 +31,7 @@ const mainNavItems = [
   { href: "/locations", label: "Ubicaciones", icon: MapPin },
   { href: "/cash", label: "Caja chica", icon: Wallet },
   { href: "/reports", label: "Reportes", icon: BarChart2 },
+  { href: "/gastos", label: "Gastos", icon: Receipt },
 ]
 
 const comprasNavItems = [
