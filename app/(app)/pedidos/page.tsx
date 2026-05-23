@@ -82,9 +82,10 @@ export default async function PedidosPage() {
           const comprados = req.purchase_request_items?.filter(i => i.status === "comprado").length ?? 0
 
           return (
-            <div
+            <Link
               key={req.id}
-              className="bg-card border rounded-xl p-4 space-y-3"
+              href={`/pedidos/${req.id}`}
+              className="block bg-card border rounded-xl p-4 space-y-3 hover:bg-accent/50 active:scale-[0.99] transition-all"
             >
               {/* Obra + status */}
               <div className="flex items-start justify-between gap-2">
@@ -131,7 +132,7 @@ export default async function PedidosPage() {
                 <Clock className="h-3.5 w-3.5" />
                 {formatDate(req.created_at)}
               </div>
-            </div>
+            </Link>
           )
         })}
       </div>

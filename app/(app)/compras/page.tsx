@@ -94,7 +94,7 @@ export default async function ComprasPage() {
               const comprados = req.purchase_request_items?.filter(i => i.status === "comprado").length ?? 0
 
               return (
-                <div key={req.id} className="border rounded-xl p-5 bg-card space-y-3">
+                <Link key={req.id} href={`/pedidos/${req.id}`} className="block border rounded-xl p-5 bg-card space-y-3 hover:bg-accent/50 transition-colors">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -156,7 +156,7 @@ export default async function ComprasPage() {
                     <Clock className="h-3.5 w-3.5" />
                     {formatDate(req.created_at)}
                   </div>
-                </div>
+                </Link>
               )
             })}
           </section>
@@ -180,7 +180,7 @@ export default async function ComprasPage() {
               const total = req.purchase_request_items?.length ?? 0
 
               return (
-                <div key={req.id} className="border rounded-xl p-4 bg-card/50 opacity-70 space-y-2">
+                <Link key={req.id} href={`/pedidos/${req.id}`} className="block border rounded-xl p-4 bg-card/50 opacity-70 space-y-2 hover:opacity-90 transition-opacity">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0">
                       <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -193,7 +193,7 @@ export default async function ComprasPage() {
                     <Clock className="h-3.5 w-3.5" />
                     {formatDate(req.created_at)}
                   </div>
-                </div>
+                </Link>
               )
             })}
           </section>
