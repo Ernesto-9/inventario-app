@@ -24,7 +24,6 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
       items(name, unit, sku),
       origin_location:origin_location_id(name, type),
       destination_location:destination_location_id(name, type),
-      responsible:responsible_id(full_name),
       created_by_profile:created_by(full_name),
       movement_attachments(*)
     `)
@@ -37,7 +36,6 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
   const item = mov.items as { name: string; unit: string; sku: string | null } | null
   const origin = mov.origin_location as { name: string; type: string } | null
   const dest = mov.destination_location as { name: string; type: string } | null
-  const responsible = mov.responsible as { full_name: string } | null
   const createdBy = mov.created_by_profile as { full_name: string } | null
   const attachments = mov.movement_attachments as Array<{ id: string; type: string; file_url: string; file_name: string; file_size: number | null; created_at: string }> ?? []
 
@@ -91,17 +89,17 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
             </div>
           )}
 
-          {responsible && (
-            <div>
-              <p className="text-xs text-muted-foreground">Responsable</p>
-              <p className="font-medium text-sm">{responsible.full_name}</p>
-            </div>
-          )}
-
           {createdBy && (
             <div>
               <p className="text-xs text-muted-foreground">Registrado por</p>
               <p className="font-medium text-sm">{createdBy.full_name}</p>
+            </div>
+          )}
+
+          {mov.razon_social && (
+            <div>
+              <p className="text-xs text-muted-foreground">Razón social</p>
+              <p className="font-medium text-sm">{mov.razon_social as string}</p>
             </div>
           )}
 

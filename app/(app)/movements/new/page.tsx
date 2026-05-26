@@ -95,6 +95,7 @@ export default function NewMovementPage() {
   const [files, setFiles] = useState<PendingFile[]>([])
   const [currentUserId, setCurrentUserId] = useState("")
   const [isAdmin, setIsAdmin] = useState(false)
+  const [userFund, setUserFund] = useState<{ id: string } | null>(null)
 
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false)
@@ -138,10 +139,10 @@ export default function NewMovementPage() {
     destination_location_id: '',
     notes: '',
     reference_number: '',
-    responsible_id: '',
     supplier: '',
     recipient_name: '',
     ticket_total: '',
+    razon_social: '',
   })
 
   const update = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }))
@@ -170,12 +171,12 @@ export default function NewMovementPage() {
     const uid = userRes.data.user?.id ?? ""
     setCurrentUserId(uid)
     if (uid) {
-      const { data: profile } = await supabase.from("profiles").select("role").eq("id", uid).single()
-      const admin = (profile as { role: string } | null)?.role === "admin"
-      setIsAdmin(admin)
-      if (!admin) {
-        setForm(f => ({ ...f, responsible_id: uid }))
-      }
+      const [profileRes, fundRes] = await Promise.all([
+        supabase.from("profiles").select("role").eq("id", uid).single(),
+        supabase.from("cash_funds").select("id").eq("is_active", true).eq("user_id", uid).maybeSingle(),
+      ])
+      setIsAdmin((profileRes.data as { role: string } | null)?.role === "admin")
+      setUserFund((fundRes.data as { id: string } | null))
     }
     const preItemId = searchParams.get('item')
     if (preItemId && itemsData.length > 0) {
@@ -423,9 +424,9 @@ export default function NewMovementPage() {
         p_notes: form.notes || undefined,
         p_unit_cost: row.unit_cost ? parseFloat(row.unit_cost) : undefined,
         p_reference_number: form.reference_number || undefined,
-        p_responsible_id: form.responsible_id || undefined,
         p_supplier: form.supplier || undefined,
         p_recipient_name: form.recipient_name || undefined,
+        p_razon_social: form.razon_social || undefined,
       })
 
       if (rpcError) {
@@ -456,27 +457,24 @@ export default function NewMovementPage() {
       }
     }
 
-    // Cash deduction for entradas — only if the current user has a linked fund
-    if (form.type === 'entrada' && movementIds.length > 0) {
+    // Descontar del fondo de caja chica del usuario (siempre para entradas)
+    if (form.type === 'entrada' && movementIds.length > 0 && userFund) {
       const sumOfCosts = validRows.reduce((sum, r) => sum + (parseFloat(r.quantity) || 0) * (parseFloat(r.unit_cost) || 0), 0)
       const ticketTotalVal = form.ticket_total ? parseFloat(form.ticket_total) : 0
       const cashAmount = ticketTotalVal > 0 ? ticketTotalVal : sumOfCosts
       if (cashAmount > 0) {
-        const { data: userFund } = await supabase
-          .from("cash_funds")
-          .select("id")
-          .eq("is_active", true)
-          .eq("user_id", currentUserId)
-          .maybeSingle()
-        if (userFund) {
-          await supabase.from("cash_transactions").insert({
-            fund_id: userFund.id,
-            type: 'gasto',
-            amount: cashAmount,
-            description: `Compra (${movementIds.length} artículo${movementIds.length > 1 ? 's' : ''})`,
-            movement_id: movementIds[0],
-            created_by: currentUserId,
-          })
+        const { error: cashError } = await supabase.from("cash_transactions").insert({
+          fund_id: userFund.id,
+          type: 'gasto',
+          amount: cashAmount,
+          description: `[${form.razon_social}] ${form.supplier} — ${movementIds.length} artículo${movementIds.length > 1 ? 's' : ''}`,
+          movement_id: movementIds[0],
+          created_by: currentUserId,
+        })
+        if (cashError) {
+          setError(`Movimiento registrado pero no se pudo descontar del fondo: ${cashError.message}`)
+          setLoading(false)
+          return
         }
       }
     }
@@ -494,6 +492,8 @@ export default function NewMovementPage() {
     if (form.type === 'salida' && !form.recipient_name.trim()) return setError("Indica a quién se le entrega")
     if (form.type === 'entrada' && !form.supplier.trim()) return setError("El proveedor es obligatorio para entradas")
     if (form.type === 'entrada' && !form.ticket_total.trim()) return setError("El total del ticket es obligatorio para entradas")
+    if (form.type === 'entrada' && !form.razon_social) return setError("Selecciona la razón social de la entrada")
+    if (form.type === 'entrada' && !userFund) return setError("No tienes un fondo de caja chica asignado. Pide al administrador que te vincule uno.")
 
     if (validRows.some(r => r.is_new || (!r.item_id && r.item_name.trim() !== ''))) {
       setShowNewItemsDialog(true)
@@ -865,18 +865,19 @@ export default function NewMovementPage() {
                 </div>
               )}
 
-              {/* Responsable: solo admin puede cambiar; los demás quedan como ellos mismos */}
-              {isAdmin ? (
+              {form.type === 'entrada' && (
                 <div className="space-y-2">
-                  <Label htmlFor="responsible">Responsable del movimiento</Label>
-                  <Select value={form.responsible_id} onValueChange={v => update('responsible_id', v)}>
-                    <SelectTrigger id="responsible"><SelectValue placeholder="¿Quién realiza el movimiento?" /></SelectTrigger>
+                  <Label htmlFor="razon_social">Razón social <span className="text-destructive">*</span></Label>
+                  <Select value={form.razon_social} onValueChange={v => update('razon_social', v)}>
+                    <SelectTrigger id="razon_social"><SelectValue placeholder="Selecciona razón social" /></SelectTrigger>
                     <SelectContent>
-                      {profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+                      <SelectItem value="IPC">IPC</SelectItem>
+                      <SelectItem value="Empresarial">Empresarial</SelectItem>
+                      <SelectItem value="Arrendamiento">Arrendamiento</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-              ) : null}
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="notes">Notas</Label>
