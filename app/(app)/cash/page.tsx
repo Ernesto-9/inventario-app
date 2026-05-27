@@ -89,7 +89,7 @@ function fmtDate(d: string, opts?: Intl.DateTimeFormatOptions) {
   return new Date(d).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', ...(opts ?? { day: '2-digit', month: 'short', year: 'numeric' }) })
 }
 
-type AppView = 'main' | 'cycles' | 'cycle-detail'
+type AppView = 'main' | 'fund-cycles' | 'cycle-detail'
 
 export default function CashPage() {
   const supabase = createClient()
@@ -102,6 +102,7 @@ export default function CashPage() {
 
   const [view, setView] = useState<AppView>('main')
   const [selectedCycle, setSelectedCycle] = useState<CycleData | null>(null)
+  const [selectedFund, setSelectedFund] = useState<CashFund | null>(null)
 
   const [depositDialog, setDepositDialog] = useState(false)
   const [gastoDialog, setGastoDialog] = useState(false)
@@ -112,6 +113,7 @@ export default function CashPage() {
   const [gastoForm, setGastoForm] = useState({ fund_id: "", amount: "", description: "", reference_number: "", category: "" })
   const [newFundForm, setNewFundForm] = useState({ name: "", description: "", user_id: "" })
   const [deleteConfirmTx, setDeleteConfirmTx] = useState<CashTransaction | null>(null)
+  const [deleteConfirmFund, setDeleteConfirmFund] = useState<CashFund | null>(null)
 
   const loadData = useCallback(async () => {
     const [fundsRes, txRes, userRes, profilesRes] = await Promise.all([
@@ -123,9 +125,11 @@ export default function CashPage() {
       supabase.auth.getUser(),
       supabase.from("profiles").select("id, full_name").order("full_name"),
     ])
-    setFunds((fundsRes.data as CashFund[]) ?? [])
+    const freshFunds = (fundsRes.data as CashFund[]) ?? []
+    setFunds(freshFunds)
     setTransactions((txRes.data as unknown as CashTransaction[]) ?? [])
     setProfiles((profilesRes.data as Profile[]) ?? [])
+    setSelectedFund(prev => prev ? (freshFunds.find(f => f.id === prev.id) ?? prev) : null)
     const uid = userRes.data.user?.id ?? ""
     setCurrentUserId(uid)
     if (uid) {
@@ -137,7 +141,6 @@ export default function CashPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  const cycles = buildCycles(transactions)
   const totalBalance = funds.reduce((sum, f) => sum + f.balance, 0)
   const transactionsDesc = [...transactions].reverse()
 
@@ -187,7 +190,7 @@ export default function CashPage() {
 
   async function handleNewFund(e: React.FormEvent) {
     e.preventDefault()
-    if (!newFundForm.name) return
+    if (!newFundForm.name || !newFundForm.user_id) return
     setSubmitting(true)
     const { error } = await supabase.from("cash_funds").insert({
       name: newFundForm.name,
@@ -208,7 +211,20 @@ export default function CashPage() {
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return }
     toast({ title: tx.type === 'depósito' ? "Depósito eliminado" : "Gasto eliminado" })
     setDeleteConfirmTx(null)
-    if (view === 'cycle-detail') setView('cycles')
+    if (view === 'cycle-detail') setView('fund-cycles')
+    loadData()
+  }
+
+  async function handleDeleteFund(fund: CashFund) {
+    // Delete all transactions for this fund first, then the fund itself
+    const { error: txError } = await supabase.from("cash_transactions").delete().eq("fund_id", fund.id)
+    if (txError) { toast({ title: "Error al borrar transacciones", description: txError.message, variant: "destructive" }); return }
+    const { error } = await supabase.from("cash_funds").delete().eq("id", fund.id)
+    if (error) { toast({ title: "Error al borrar fondo", description: error.message, variant: "destructive" }); return }
+    toast({ title: `Fondo "${fund.name}" eliminado` })
+    setDeleteConfirmFund(null)
+    setSelectedFund(null)
+    setView('main')
     loadData()
   }
 
@@ -293,7 +309,7 @@ export default function CashPage() {
     return (
       <div className="p-4 md:p-6 space-y-4 max-w-3xl">
         <div className="flex items-center justify-between">
-          <button onClick={() => setView('cycles')} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => setView('fund-cycles')} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
             Ciclos
           </button>
@@ -399,22 +415,36 @@ export default function CashPage() {
     )
   }
 
-  // ── CYCLES LIST VIEW ──
-  if (view === 'cycles') {
+  // ── FUND CYCLES VIEW ──
+  if (view === 'fund-cycles' && selectedFund) {
+    const fundTx = transactions.filter(t => t.fund_id === selectedFund.id)
+    const fundCycles = buildCycles(fundTx)
     return (
       <div className="p-4 md:p-6 space-y-4 max-w-2xl">
-        <button onClick={() => setView('main')} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-4 w-4" />
-          Caja chica
-        </button>
+        <div className="flex items-center justify-between">
+          <button onClick={() => { setView('main'); setSelectedFund(null) }} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="h-4 w-4" />
+            Caja chica
+          </button>
+          {isAdmin && (
+            <Button size="sm" variant="outline" className="text-red-500 hover:text-red-600 hover:border-red-300" onClick={() => setDeleteConfirmFund(selectedFund)}>
+              <Trash2 className="h-4 w-4 mr-1" />Eliminar fondo
+            </Button>
+          )}
+        </div>
 
-        <h2 className="text-xl font-bold">Ciclos de reposición</h2>
+        <div>
+          <h2 className="text-xl font-bold">Ciclos — {selectedFund.name}</h2>
+          <p className={`text-sm font-semibold mt-0.5 ${selectedFund.balance < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+            Saldo actual: {fmt(selectedFund.balance)}
+          </p>
+        </div>
 
-        {cycles.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-12 text-center">No hay reposiciones registradas.</p>
+        {fundCycles.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-12 text-center">No hay reposiciones registradas en este fondo.</p>
         ) : (
           <div className="space-y-3">
-            {cycles.map(cycle => (
+            {fundCycles.map(cycle => (
               <Card
                 key={cycle.deposit.id}
                 className="cursor-pointer hover:shadow-md transition-shadow"
@@ -461,7 +491,6 @@ export default function CashPage() {
           <p className="text-muted-foreground text-sm">Fondos y gastos</p>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
-          <Button variant="outline" size="sm" onClick={() => setView('cycles')}>Ciclos</Button>
           <Button variant="outline" onClick={() => setGastoDialog(true)}>
             <TrendingDown className="h-4 w-4 mr-1" />Gasto
           </Button>
@@ -502,14 +531,21 @@ export default function CashPage() {
             {funds.map(fund => {
               const linkedUser = fund.user_id ? profiles.find(p => p.id === fund.user_id) : null
               return (
-                <Card key={fund.id}>
+                <Card
+                  key={fund.id}
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => { setSelectedFund(fund); setView('fund-cycles') }}
+                >
                   <CardContent className="p-4 flex items-center justify-between">
                     <div>
                       <p className="font-medium">{fund.name}</p>
                       {linkedUser && <p className="text-xs text-muted-foreground">{linkedUser.full_name}</p>}
                       {fund.description && <p className="text-xs text-muted-foreground">{fund.description}</p>}
                     </div>
-                    <p className={`text-lg font-bold ${fund.balance < 0 ? 'text-red-500' : ''}`}>{fmt(fund.balance)}</p>
+                    <div className="text-right">
+                      <p className={`text-lg font-bold ${fund.balance < 0 ? 'text-red-500' : ''}`}>{fmt(fund.balance)}</p>
+                      <p className="text-xs text-muted-foreground">Ver ciclos</p>
+                    </div>
                   </CardContent>
                 </Card>
               )
@@ -689,6 +725,29 @@ export default function CashPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog: Confirmar eliminación de fondo */}
+      <Dialog open={!!deleteConfirmFund} onOpenChange={open => { if (!open) setDeleteConfirmFund(null) }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Eliminar fondo</DialogTitle></DialogHeader>
+          {deleteConfirmFund && (
+            <div className="space-y-4">
+              <p className="text-sm">
+                ¿Eliminar el fondo <strong>{deleteConfirmFund.name}</strong>?
+                {transactions.filter(t => t.fund_id === deleteConfirmFund.id).length > 0 && (
+                  <span className="block mt-1 text-destructive text-xs">
+                    Se borrarán también todos sus depósitos y gastos ({transactions.filter(t => t.fund_id === deleteConfirmFund.id).length} movimiento{transactions.filter(t => t.fund_id === deleteConfirmFund.id).length !== 1 ? 's' : ''}). Esta acción no se puede deshacer.
+                  </span>
+                )}
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirmFund(null)}>Cancelar</Button>
+                <Button variant="destructive" className="flex-1" onClick={() => handleDeleteFund(deleteConfirmFund)}>Eliminar</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog: Nuevo fondo (admin only) */}
       {isAdmin && (
         <Dialog open={newFundDialog} onOpenChange={setNewFundDialog}>
@@ -701,12 +760,12 @@ export default function CashPage() {
                   value={newFundForm.name} onChange={e => setNewFundForm(f => ({ ...f, name: e.target.value }))} required />
               </div>
               <div className="space-y-2">
-                <Label>Usuario responsable</Label>
+                <Label>Perfil vinculado <span className="text-destructive">*</span></Label>
                 <Select value={newFundForm.user_id} onValueChange={v => setNewFundForm(f => ({ ...f, user_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona un usuario" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecciona un perfil" /></SelectTrigger>
                   <SelectContent>{profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Las entradas de este usuario descontarán de este fondo.</p>
+                <p className="text-xs text-muted-foreground">Las entradas de este perfil descontarán de este fondo automáticamente.</p>
               </div>
               <div className="space-y-2">
                 <Label>Descripción <span className="text-muted-foreground font-normal">(opcional)</span></Label>

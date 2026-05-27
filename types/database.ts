@@ -70,6 +70,7 @@ export interface Movement {
   supplier: string | null
   responsible_id: string | null
   recipient_name: string | null
+  razon_social: 'IPC' | 'Empresarial' | 'Arrendamiento' | null
   created_by: string
   created_at: string
   // joins
