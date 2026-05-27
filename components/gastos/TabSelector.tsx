@@ -4,10 +4,11 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 const TABS = [
-  { key: "IPC",          active: "bg-cyan-500 text-white border-cyan-500" },
-  { key: "Empresarial",  active: "bg-purple-500 text-white border-purple-500" },
-  { key: "Arrendamiento",active: "bg-orange-500 text-white border-orange-500" },
-  { key: "Acumulado",    active: "bg-slate-500 text-white border-slate-500" },
+  { key: "IPC",           active: "bg-cyan-500 text-white border-cyan-500" },
+  { key: "Empresarial",   active: "bg-purple-500 text-white border-purple-500" },
+  { key: "Arrendamiento", active: "bg-orange-500 text-white border-orange-500" },
+  { key: "Colaboradores", active: "bg-teal-500 text-white border-teal-500" },
+  { key: "Acumulado",     active: "bg-slate-500 text-white border-slate-500" },
 ]
 
 interface TabSelectorProps {

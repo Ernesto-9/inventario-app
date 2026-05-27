@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { MonthSelector } from "@/components/gastos/MonthSelector"
 import { TabSelector } from "@/components/gastos/TabSelector"
 
-const VALID_TABS = ["IPC", "Empresarial", "Arrendamiento", "Acumulado"] as const
+const VALID_TABS = ["IPC", "Empresarial", "Arrendamiento", "Colaboradores", "Acumulado"] as const
 type TabKey = typeof VALID_TABS[number]
 
 interface PageProps {
@@ -27,6 +27,12 @@ const RAZON_COLORS = {
     bg: "bg-orange-50",
     text: "text-orange-700",
     badge: "bg-orange-100 text-orange-800",
+  },
+  Colaboradores: {
+    border: "border-l-teal-500",
+    bg: "bg-teal-50",
+    text: "text-teal-700",
+    badge: "bg-teal-100 text-teal-800",
   },
   Acumulado: {
     border: "border-l-slate-500",
@@ -203,6 +209,8 @@ export default async function GastosPage({ searchParams }: PageProps) {
   const ipc = rows.filter((r) => r.razon_social === "IPC")
   const empresarial = rows.filter((r) => r.razon_social === "Empresarial")
   const arrendamiento = rows.filter((r) => r.razon_social === "Arrendamiento")
+  const COLABORADORES_VALUES = ["Naian", "Carolina", "Jr", "Adriana"]
+  const colaboradores = rows.filter((r) => COLABORADORES_VALUES.includes(r.razon_social))
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-4">
@@ -219,6 +227,7 @@ export default async function GastosPage({ searchParams }: PageProps) {
       {tab === "IPC" && <GastoTable label="IPC" rows={ipc} colorKey="IPC" />}
       {tab === "Empresarial" && <GastoTable label="Empresarial" rows={empresarial} colorKey="Empresarial" />}
       {tab === "Arrendamiento" && <GastoTable label="Arrendamiento" rows={arrendamiento} colorKey="Arrendamiento" />}
+      {tab === "Colaboradores" && <GastoTable label="Colaboradores" rows={colaboradores} showRazonSocial colorKey="Colaboradores" />}
       {tab === "Acumulado" && <GastoTable label="Acumulado" rows={rows} showRazonSocial colorKey="Acumulado" />}
     </div>
   )

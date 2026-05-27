@@ -95,6 +95,7 @@ export default function NewMovementPage() {
   const [files, setFiles] = useState<PendingFile[]>([])
   const [currentUserId, setCurrentUserId] = useState("")
   const [isAdmin, setIsAdmin] = useState(false)
+  const [userRole, setUserRole] = useState<string>("")
   const [userFund, setUserFund] = useState<{ id: string } | null>(null)
 
   const [suppliers, setSuppliers] = useState<string[]>([])
@@ -175,7 +176,9 @@ export default function NewMovementPage() {
         supabase.from("profiles").select("role").eq("id", uid).single(),
         supabase.from("cash_funds").select("id").eq("is_active", true).eq("user_id", uid).maybeSingle(),
       ])
-      setIsAdmin((profileRes.data as { role: string } | null)?.role === "admin")
+      const role = (profileRes.data as { role: string } | null)?.role ?? ""
+      setIsAdmin(role === "admin")
+      setUserRole(role)
       setUserFund((fundRes.data as { id: string } | null))
     }
     const preItemId = searchParams.get('item')
@@ -874,6 +877,14 @@ export default function NewMovementPage() {
                       <SelectItem value="IPC">IPC</SelectItem>
                       <SelectItem value="Empresarial">Empresarial</SelectItem>
                       <SelectItem value="Arrendamiento">Arrendamiento</SelectItem>
+                      {userRole !== "trabajador" && (
+                        <>
+                          <SelectItem value="Naian">Naian</SelectItem>
+                          <SelectItem value="Carolina">Carolina</SelectItem>
+                          <SelectItem value="Jr">Jr</SelectItem>
+                          <SelectItem value="Adriana">Adriana</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
