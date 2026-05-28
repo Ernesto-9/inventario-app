@@ -142,13 +142,11 @@ export default function CashPage() {
   useEffect(() => { loadData() }, [loadData])
 
   const totalBalance = funds.reduce((sum, f) => sum + f.balance, 0)
-  const transactionsDesc = [...transactions].reverse()
 
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const weeklyGastos = transactions
     .filter(t => t.type === "gasto" && new Date(t.created_at) >= oneWeekAgo)
     .reduce((sum, t) => sum + t.amount, 0)
-  const lastDeposit = transactionsDesc.find(t => t.type === 'depósito')
 
   async function handleDeposit(e: React.FormEvent) {
     e.preventDefault()
@@ -509,14 +507,6 @@ export default function CashPage() {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Gastos esta semana</p>
             <p className="text-2xl font-bold mt-1 text-red-500">{fmt(weeklyGastos)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Última reposición</p>
-            <p className="text-sm font-semibold mt-1">
-              {lastDeposit ? fmtDate(lastDeposit.created_at, { day: '2-digit', month: 'short', year: 'numeric' }) : "—"}
-            </p>
           </CardContent>
         </Card>
       </div>
