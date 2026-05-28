@@ -492,6 +492,7 @@ export default function NewMovementPage() {
 
     const validRows = itemRows.filter(r => (r.item_id || r.item_name.trim()) && r.quantity && parseFloat(r.quantity) > 0)
     if (validRows.length === 0) return setError("Agrega al menos un artículo con cantidad")
+    if (form.type === 'salida' && !form.destination_location_id) return setError("Selecciona la obra destino")
     if (form.type === 'salida' && !form.recipient_name.trim()) return setError("Indica a quién se le entrega")
     if (form.type === 'entrada' && !form.supplier.trim()) return setError("El proveedor es obligatorio para entradas")
     if (form.type === 'entrada' && !form.ticket_total.trim()) return setError("El total del ticket es obligatorio para entradas")
@@ -508,7 +509,7 @@ export default function NewMovementPage() {
 
   const movementTypes = isAdmin ? allMovementTypes : allMovementTypes.filter(t => t.value !== 'ajuste')
   const showOrigin = form.type === 'salida' || form.type === 'transferencia' || form.type === 'ajuste'
-  const showDestination = form.type === 'entrada' || form.type === 'transferencia'
+  const showDestination = form.type === 'entrada' || form.type === 'transferencia' || form.type === 'salida'
   const validRows = itemRows.filter(r => (r.item_id || r.item_name.trim()) && r.quantity && parseFloat(r.quantity) > 0)
   const totalCost = form.type === 'entrada'
     ? validRows.reduce((sum, r) => sum + (parseFloat(r.quantity) || 0) * (parseFloat(r.unit_cost) || 0), 0)
@@ -533,7 +534,7 @@ export default function NewMovementPage() {
                 key={t.value}
                 type="button"
                 onClick={() => {
-                  setForm(f => ({ ...f, type: t.value }))
+                  setForm(f => ({ ...f, type: t.value, destination_location_id: '' }))
                   setItemRows([makeRow()])
                   setError(null)
                 }}
@@ -743,7 +744,7 @@ export default function NewMovementPage() {
               {showDestination && (
                 <div className="space-y-2">
                   <Label htmlFor="destination">
-                    {form.type === 'transferencia' ? 'Destino *' : 'Entra a *'}
+                    {form.type === 'transferencia' ? 'Destino *' : form.type === 'salida' ? 'Obra destino *' : 'Entra a *'}
                   </Label>
                   <Select value={form.destination_location_id} onValueChange={v => {
                     if (v === '__new_location__') {
@@ -753,17 +754,22 @@ export default function NewMovementPage() {
                     }
                     update('destination_location_id', v)
                   }}>
-                    <SelectTrigger id="destination"><SelectValue placeholder="Selecciona ubicación" /></SelectTrigger>
+                    <SelectTrigger id="destination"><SelectValue placeholder={form.type === 'salida' ? 'Selecciona obra' : 'Selecciona ubicación'} /></SelectTrigger>
                     <SelectContent>
-                      {locations.filter(l => l.id !== form.origin_location_id).map(l => (
-                        <SelectItem key={l.id} value={l.id}>
-                          <span className="flex items-center gap-2">
-                            {l.name}
-                            <Badge variant="outline" className="text-xs capitalize">{l.type}</Badge>
-                          </span>
-                        </SelectItem>
-                      ))}
-                      {isAdmin && (
+                      {locations
+                        .filter(l => l.id !== form.origin_location_id)
+                        .filter(l => form.type === 'salida' ? l.type === 'obra' : true)
+                        .map(l => (
+                          <SelectItem key={l.id} value={l.id}>
+                            <span className="flex items-center gap-2">
+                              {l.name}
+                              {form.type !== 'salida' && (
+                                <Badge variant="outline" className="text-xs capitalize">{l.type}</Badge>
+                              )}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      {isAdmin && form.type !== 'salida' && (
                         <SelectItem value="__new_location__" className="text-primary font-medium">
                           <span className="flex items-center gap-1">
                             <Plus className="h-3.5 w-3.5" />

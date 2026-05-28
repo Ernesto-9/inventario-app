@@ -71,6 +71,7 @@ export interface Movement {
   responsible_id: string | null
   recipient_name: string | null
   razon_social: 'IPC' | 'Empresarial' | 'Arrendamiento' | 'Naian' | 'Carolina' | 'Jr' | 'Adriana' | null
+  source_movement_id: string | null
   created_by: string
   created_at: string
   // joins
