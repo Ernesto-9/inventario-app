@@ -216,9 +216,6 @@ export default function CashPage() {
   }
 
   async function handleDeleteFund(fund: CashFund) {
-    // Delete all transactions for this fund first, then the fund itself
-    const { error: txError } = await supabase.from("cash_transactions").delete().eq("fund_id", fund.id)
-    if (txError) { toast({ title: "Error al borrar transacciones", description: txError.message, variant: "destructive" }); return }
     const { error } = await supabase.from("cash_funds").delete().eq("id", fund.id)
     if (error) { toast({ title: "Error al borrar fondo", description: error.message, variant: "destructive" }); return }
     toast({ title: `Fondo "${fund.name}" eliminado` })
