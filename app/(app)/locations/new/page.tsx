@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,12 +23,15 @@ const locationTypes: { value: LocationType; label: string }[] = [
 
 export default function NewLocationPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const backTo = searchParams.get("back") === "obras" ? "/obras" : "/locations"
+  const initialType = (searchParams.get("type") as LocationType | null) ?? ""
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
     name: "",
-    type: "" as LocationType | "",
+    type: initialType as LocationType | "",
     description: "",
   })
 
@@ -51,7 +54,7 @@ export default function NewLocationPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push("/locations")
+      router.push(backTo)
       router.refresh()
     }
   }
@@ -60,9 +63,9 @@ export default function NewLocationPage() {
     <div className="p-4 md:p-6 max-w-lg">
       <div className="flex items-center gap-3 mb-6">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/locations"><ArrowLeft className="h-4 w-4" /></Link>
+          <Link href={backTo}><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
-        <h1 className="text-xl font-bold">Nueva ubicación</h1>
+        <h1 className="text-xl font-bold">{initialType === "obra" ? "Nueva obra" : "Nueva ubicación"}</h1>
       </div>
 
       <Card>
@@ -114,7 +117,7 @@ export default function NewLocationPage() {
                 {loading ? "Guardando..." : "Guardar ubicación"}
               </Button>
               <Button type="button" variant="outline" asChild>
-                <Link href="/locations">Cancelar</Link>
+                <Link href={backTo}>Cancelar</Link>
               </Button>
             </div>
           </form>

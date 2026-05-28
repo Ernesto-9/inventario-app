@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { MonthSelector } from "@/components/obras/MonthSelector"
 import { ObraSelector } from "@/components/obras/ObraSelector"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Plus } from "lucide-react"
 
 interface PageProps {
   searchParams: Promise<{ mes?: string; obra?: string }>
@@ -109,6 +112,12 @@ export default async function ObrasPage({ searchParams }: PageProps) {
         <div className="flex items-center gap-3 flex-wrap">
           <ObraSelector obras={obras} obraId={obraId} mes={mes} />
           <MonthSelector mes={mes} />
+          <Button asChild size="sm">
+            <Link href="/locations/new?type=obra&back=obras">
+              <Plus className="h-4 w-4 mr-1" />
+              Nueva obra
+            </Link>
+          </Button>
         </div>
       </div>
 
