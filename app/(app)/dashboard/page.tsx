@@ -2,17 +2,22 @@ import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertTriangle, ArrowLeftRight, Package, Wallet, Plus, TrendingDown, TrendingUp } from "lucide-react"
+import { AlertTriangle, ArrowLeftRight, Package, Plus, TrendingDown, TrendingUp } from "lucide-react"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+
+  const now = new Date()
+  const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString()
+  const monthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 1)).toISOString()
 
   const [
     { data: profile },
     { data: stockTotals },
     { data: recentMovements },
     { data: cashFunds },
+    { data: gastosMovements },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, role").eq("id", user!.id).single(),
     supabase.from("stock_totals").select("*").order("item_name"),
@@ -22,10 +27,19 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false })
       .limit(8),
     supabase.from("cash_funds").select("balance").eq("is_active", true),
+    supabase
+      .from("movements")
+      .select("quantity, unit_cost")
+      .eq("type", "entrada")
+      .not("razon_social", "is", null)
+      .not("unit_cost", "is", null)
+      .gte("created_at", monthStart)
+      .lt("created_at", monthEnd),
   ])
 
   const lowStockItems = stockTotals?.filter(s => s.is_low_stock) ?? []
   const cashTotal = cashFunds?.reduce((sum: number, f: { balance: number }) => sum + (f.balance ?? 0), 0) ?? 0
+  const gastosTotal = gastosMovements?.reduce((sum: number, m: { quantity: number; unit_cost: number }) => sum + (m.quantity ?? 0) * (m.unit_cost ?? 0), 0) ?? 0
 
   // Última compra por artículo con stock bajo
   const lowStockItemIds = lowStockItems.map((i: { item_id: string }) => i.item_id)
@@ -135,23 +149,25 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {/* Accesos rápidos */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        {[
-          { href: '/movements/new', label: 'Nuevo movimiento', icon: ArrowLeftRight },
-          { href: '/items', label: 'Ver stock', icon: Package },
-          { href: '/cash', label: 'Caja chica', icon: Wallet },
-          { href: '/reports', label: 'Ver reportes', icon: TrendingUp },
-        ].map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-              <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                <Icon className="h-5 w-5 text-muted-foreground" />
-                <p className="text-xs font-medium leading-tight">{label}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+      {/* Métricas adicionales */}
+      <div className="grid grid-cols-2 gap-3">
+        <Link href="/gastos">
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <p className="text-xs text-muted-foreground">Gastos del mes</p>
+              <p className="text-2xl font-bold mt-1">
+                ${gastosTotal.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+        {/* Espacio para métrica futura */}
+        <Card className="border-dashed border-2 border-muted bg-transparent opacity-40">
+          <CardContent className="p-4" />
+        </Card>
       </div>
 
       {/* Actividad reciente */}
