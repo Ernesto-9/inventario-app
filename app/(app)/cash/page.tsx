@@ -150,7 +150,7 @@ export default function CashPage() {
 
   async function handleDeposit(e: React.FormEvent) {
     e.preventDefault()
-    if (!depositForm.fund_id || !depositForm.amount || !depositForm.description) return
+    if (!depositForm.fund_id || !depositForm.amount) return
     setSubmitting(true)
     const payload: Record<string, unknown> = {
       fund_id: depositForm.fund_id, type: "depósito",
@@ -573,9 +573,9 @@ export default function CashPage() {
                 value={depositForm.amount} onChange={e => setDepositForm(f => ({ ...f, amount: e.target.value }))} required />
             </div>
             <div className="space-y-2">
-              <Label>Descripción</Label>
+              <Label>Descripción <span className="text-muted-foreground font-normal">(opcional)</span></Label>
               <Input placeholder="Ej: Reposición mensual"
-                value={depositForm.description} onChange={e => setDepositForm(f => ({ ...f, description: e.target.value }))} required />
+                value={depositForm.description} onChange={e => setDepositForm(f => ({ ...f, description: e.target.value }))} />
             </div>
             {isAdmin && (
               <div className="space-y-2">
