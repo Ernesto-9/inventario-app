@@ -75,7 +75,7 @@ function buildCycles(transactions: CashTransaction[]): CycleData[] {
     const remaining = available - totalSpent
 
     cycles.push({ deposit, gastos, startDate: deposit.created_at, endDate: nextDeposit?.created_at ?? null, carryover, totalSpent, available, remaining })
-    carryover = remaining
+    carryover = 0
   }
 
   return cycles.reverse()
