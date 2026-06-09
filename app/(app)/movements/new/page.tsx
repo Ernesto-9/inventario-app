@@ -651,7 +651,8 @@ export default function NewMovementPage() {
                             <SelectItem value="pieza">Pieza</SelectItem>
                             <SelectItem value="metro">Metro</SelectItem>
                             <SelectItem value="kilo">Kilo</SelectItem>
-                            {!['pieza', 'metro', 'kilo'].includes(row.unit) && row.unit && (
+                            <SelectItem value="litro">Litro</SelectItem>
+                            {!['pieza', 'metro', 'kilo', 'litro'].includes(row.unit) && row.unit && (
                               <SelectItem value={row.unit}>{row.unit}</SelectItem>
                             )}
                           </SelectContent>
