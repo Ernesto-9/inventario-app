@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { MonthSelector } from "@/components/gastos/MonthSelector"
 import { TabSelector } from "@/components/gastos/TabSelector"
@@ -212,6 +213,15 @@ export default async function GastosPage({ searchParams }: PageProps) {
   const COLABORADORES_VALUES = ["Naian", "Carolina", "Jr", "Adriana"]
   const colaboradores = rows.filter((r) => COLABORADORES_VALUES.includes(r.razon_social))
 
+  // Combustible del mes — se muestra aparte, NO se suma al acumulado de razón social.
+  // `date` es columna DATE → comparar contra YYYY-MM-DD (porción de los rangos UTC).
+  const { data: fuelData } = await supabase
+    .from("fuel_entries")
+    .select("total_cost")
+    .gte("date", startDate.slice(0, 10))
+    .lt("date", endDate.slice(0, 10))
+  const totalCombustible = (fuelData ?? []).reduce((sum, e) => sum + e.total_cost, 0)
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
@@ -229,6 +239,20 @@ export default async function GastosPage({ searchParams }: PageProps) {
       {tab === "Arrendamiento" && <GastoTable label="Arrendamiento" rows={arrendamiento} colorKey="Arrendamiento" />}
       {tab === "Colaboradores" && <GastoTable label="Colaboradores" rows={colaboradores} showRazonSocial colorKey="Colaboradores" />}
       {tab === "Acumulado" && <GastoTable label="Acumulado" rows={rows} showRazonSocial colorKey="Acumulado" />}
+
+      {/* Combustible — gasto separado, no entra en el acumulado de razón social */}
+      <Link
+        href="/combustible"
+        className="block rounded-lg border border-l-4 border-l-amber-500 bg-amber-50 px-4 py-3 transition-colors hover:bg-amber-100"
+      >
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-base text-amber-700">Combustible</span>
+          <span className="text-sm font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+            {formatMXN(totalCombustible)}
+          </span>
+        </div>
+        <p className="text-xs text-amber-700/70 mt-0.5">Total del mes · no incluido en el acumulado</p>
+      </Link>
     </div>
   )
 }

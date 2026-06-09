@@ -248,6 +248,32 @@ export interface QuotationItem {
   items?: Pick<Item, 'id' | 'name' | 'unit'> | null
 }
 
+export interface Vehicle {
+  id: string
+  name: string
+  is_active: boolean
+  created_at: string
+}
+
+export interface FuelEntry {
+  id: string
+  vehicle_id: string
+  fuel_type: 'diesel' | 'gasolina'
+  liters: number
+  total_cost: number
+  price_per_liter: number
+  date: string
+  payment_source: 'fondo' | 'otro'
+  cash_fund_id: string | null
+  photo_url: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  // joins
+  vehicles?: Pick<Vehicle, 'id' | 'name'>
+  cash_funds?: Pick<CashFund, 'id' | 'name'> | null
+}
+
 // Generic Supabase Database type (used by createClient)
 export interface Database {
   public: {
@@ -268,6 +294,8 @@ export interface Database {
       item_suppliers: { Row: ItemSupplier; Insert: Omit<ItemSupplier, 'id' | 'created_at'>; Update: Partial<ItemSupplier>; Relationships: [] }
       quotations: { Row: Quotation; Insert: Omit<Quotation, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Quotation>; Relationships: [] }
       quotation_items: { Row: QuotationItem; Insert: Omit<QuotationItem, 'id' | 'created_at'>; Update: Partial<QuotationItem>; Relationships: [] }
+      vehicles: { Row: Vehicle; Insert: Omit<Vehicle, 'id' | 'created_at'>; Update: Partial<Vehicle>; Relationships: [] }
+      fuel_entries: { Row: FuelEntry; Insert: Omit<FuelEntry, 'id' | 'created_at' | 'price_per_liter'>; Update: Partial<FuelEntry>; Relationships: [] }
     }
     Views: {
       stock_totals: { Row: StockTotal; Relationships: [] }

@@ -3,7 +3,7 @@
 import React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Wallet, Search, ArrowLeftRight, BarChart2, ShoppingCart, ClipboardList } from "lucide-react"
+import { LayoutDashboard, Wallet, Search, ArrowLeftRight, BarChart2, ShoppingCart, ClipboardList, Fuel } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { UserRole } from "@/types/database"
 
@@ -20,6 +20,7 @@ const adminTabs: NavTab[] = [
 const workerTabs: NavTab[] = [
   { href: "/pedidos", label: "Mis pedidos", icon: ClipboardList },
   { href: "/pedidos/nuevo", label: "Nuevo pedido", icon: ArrowLeftRight, highlight: true },
+  { href: "/combustible", label: "Combustible", icon: Fuel },
 ]
 
 interface MobileNavProps {
@@ -33,7 +34,7 @@ export function MobileNav({ role }: MobileNavProps) {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t bg-background">
-      <div className={cn("grid h-16", role === "trabajador" ? "grid-cols-2" : "grid-cols-5")}>
+      <div className={cn("grid h-16", role === "trabajador" ? "grid-cols-3" : "grid-cols-5")}>
         {tabs.map(({ href, label, icon: Icon, highlight }) => {
           const active = pathname === href || (href !== "/dashboard" && href !== "/movements/new" && href !== "/pedidos/nuevo" && pathname.startsWith(href))
           const isHighlight = !!highlight

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, FileText, X, Upload, Search, ScanLine, Loader2, Check, Plus, Camera } from "lucide-react"
+import { ArrowLeft, FileText, X, Upload, Search, ScanLine, Loader2, Check, Plus, Camera, Fuel } from "lucide-react"
 import type { Location, Profile, MovementType, AttachmentType } from "@/types/database"
 import { toast } from "@/hooks/use-toast"
 import imageCompression from "browser-image-compression"
@@ -522,6 +523,12 @@ export default function NewMovementPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <h1 className="text-xl font-bold">Nuevo movimiento</h1>
+        <Button variant="outline" size="sm" asChild className="md:hidden ml-auto">
+          <Link href="/combustible">
+            <Fuel className="h-4 w-4 mr-1" />
+            Combustible
+          </Link>
+        </Button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">

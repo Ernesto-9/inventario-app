@@ -19,6 +19,7 @@ import {
   FileText,
   Receipt,
   HardHat,
+  Fuel,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
@@ -33,6 +34,7 @@ const mainNavItems = [
   { href: "/cash", label: "Caja chica", icon: Wallet },
   { href: "/reports", label: "Reportes", icon: BarChart2 },
   { href: "/gastos", label: "Gastos", icon: Receipt },
+  { href: "/combustible", label: "Combustible", icon: Fuel },
   { href: "/obras", label: "Obras", icon: HardHat },
 ]
 
