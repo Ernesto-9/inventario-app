@@ -77,6 +77,13 @@ function makeRow(overrides?: Partial<ItemRow>): ItemRow {
   }
 }
 
+// El combustible se registra en la sección Combustible, no como artículo de inventario.
+// Dispara solo si el nombre EMPIEZA con la palabra (evita falsos positivos como "filtro de gasolina").
+const FUEL_NAME_RE = /^(di[eé]sel|gasolina|combustible)\b/i
+function isFuelName(name: string) {
+  return FUEL_NAME_RE.test(name.trim())
+}
+
 const allMovementTypes: { value: MovementType; label: string; description: string }[] = [
   { value: 'entrada', label: 'Entrada', description: 'Llega mercancía al inventario' },
   { value: 'salida', label: 'Salida', description: 'Sale del inventario (consumo/uso)' },
@@ -493,6 +500,8 @@ export default function NewMovementPage() {
 
     const validRows = itemRows.filter(r => (r.item_id || r.item_name.trim()) && r.quantity && parseFloat(r.quantity) > 0)
     if (validRows.length === 0) return setError("Agrega al menos un artículo con cantidad")
+    const fuelRow = validRows.find(r => isFuelName(r.item_name))
+    if (fuelRow) return setError(`"${fuelRow.item_name.trim()}" es combustible — regístralo en la sección Combustible, no como movimiento de inventario.`)
     if (form.type === 'salida' && !form.destination_location_id) return setError("Selecciona la obra destino")
     if (form.type === 'salida' && !form.recipient_name.trim()) return setError("Indica a quién se le entrega")
     if (form.type === 'entrada' && !form.supplier.trim()) return setError("El proveedor es obligatorio para entradas")
@@ -616,24 +625,30 @@ export default function NewMovementPage() {
                             <span className="text-muted-foreground text-xs ml-1">· {i.unit}</span>
                           </button>
                         ))}
-                        {/* Crear nuevo artículo */}
+                        {/* Crear nuevo artículo (bloqueado para combustible) */}
                         {row.search.trim() && !filterItems(row.search).some(i => i.name.toLowerCase() === row.search.toLowerCase().trim()) && (
-                          <button
-                            type="button"
-                            className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 transition-colors border-t"
-                            onMouseDown={() => {
-                              updateRow(row.rowId, {
-                                item_id: null,
-                                item_name: row.search.trim(),
-                                variant_info: '',
-                                unit: 'pieza',
-                                showDropdown: false,
-                                is_new: true,
-                              })
-                            }}
-                          >
-                            + Crear: &ldquo;{row.search}&rdquo;
-                          </button>
+                          isFuelName(row.search) ? (
+                            <div className="px-3 py-2 text-sm text-amber-700 bg-amber-50 border-t">
+                              El combustible se registra en la sección <span className="font-medium">Combustible</span>, no como artículo de inventario.
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 transition-colors border-t"
+                              onMouseDown={() => {
+                                updateRow(row.rowId, {
+                                  item_id: null,
+                                  item_name: row.search.trim(),
+                                  variant_info: '',
+                                  unit: 'pieza',
+                                  showDropdown: false,
+                                  is_new: true,
+                                })
+                              }}
+                            >
+                              + Crear: &ldquo;{row.search}&rdquo;
+                            </button>
+                          )
                         )}
                       </div>
                     )}
