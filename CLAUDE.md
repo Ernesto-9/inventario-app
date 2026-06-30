@@ -59,12 +59,11 @@ El layout llama `get_my_overdue_count()` (RPC) y pasa el conteo al Sidebar. El c
 - Shadcn faltantes: usar HTML plano (`<input type="date">`, `<select>`, `<div>` para progress)
 - Impresión: `print:hidden` / `print:block` de Tailwind; PrintView se muestra solo al imprimir
 
-## Migraciones pendientes de aplicar en Supabase
-1. `20260615210000_add_profile_username.sql`
-2. `20260615210100_tasks_module.sql`
-
-Aplicar con: Supabase Dashboard → SQL Editor, o `supabase db push` si hay CLI configurado.
+## Migraciones
+1. `20260615210000_add_profile_username.sql` — aplicada en Supabase 2026-06-30
+2. `20260615210100_tasks_module.sql` — aplicada en Supabase 2026-06-30
 
 ## Fase 5 — Push notifications (NO implementada)
 Requiere: `web-push`, claves VAPID (5 vars en Vercel), service worker `public/sw.js`, íconos PNG.
-La tabla `push_subscriptions` ya existe. Ver sección 6 del plan original en `docs/plan-tareas-pendientes.md`.
+La tabla `push_subscriptions` ya existe. Ver sección 6 del plan original en
+`Padre2/Extras/Mision Inventario/plan-tareas-pendientes.md` (documento local, fuera del repo).
