@@ -354,17 +354,15 @@ export interface Database {
       quotation_items: { Row: QuotationItem; Insert: Omit<QuotationItem, 'id' | 'created_at'>; Update: Partial<QuotationItem>; Relationships: [] }
       vehicles: { Row: Vehicle; Insert: Omit<Vehicle, 'id' | 'created_at'>; Update: Partial<Vehicle>; Relationships: [] }
       fuel_entries: { Row: FuelEntry; Insert: Omit<FuelEntry, 'id' | 'created_at' | 'price_per_liter'>; Update: Partial<FuelEntry>; Relationships: [] }
+      tasks: { Row: Task; Insert: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'assigned_profile' | 'assigned_external' | 'location' | 'subtasks'>; Update: Partial<Task>; Relationships: [] }
+      external_actors: { Row: ExternalActor; Insert: Omit<ExternalActor, 'id' | 'created_at'>; Update: Partial<ExternalActor>; Relationships: [] }
+      task_history: { Row: TaskHistory; Insert: Omit<TaskHistory, 'id' | 'changed_at'>; Update: Partial<TaskHistory>; Relationships: [] }
+      push_subscriptions: { Row: PushSubscriptionRow; Insert: Omit<PushSubscriptionRow, 'id' | 'created_at'>; Update: Partial<PushSubscriptionRow>; Relationships: [] }
     }
     Views: {
       stock_totals: { Row: StockTotal; Relationships: [] }
       stock_by_location: { Row: StockByLocation; Relationships: [] }
       supplier_item_history: { Row: SupplierItemHistory; Relationships: [] }
-    }
-    Tables: {
-      tasks: { Row: Task; Insert: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'assigned_profile' | 'assigned_external' | 'location' | 'subtasks'>; Update: Partial<Task>; Relationships: [] }
-      external_actors: { Row: ExternalActor; Insert: Omit<ExternalActor, 'id' | 'created_at'>; Update: Partial<ExternalActor>; Relationships: [] }
-      task_history: { Row: TaskHistory; Insert: Omit<TaskHistory, 'id' | 'changed_at'>; Update: Partial<TaskHistory>; Relationships: [] }
-      push_subscriptions: { Row: PushSubscriptionRow; Insert: Omit<PushSubscriptionRow, 'id' | 'created_at'>; Update: Partial<PushSubscriptionRow>; Relationships: [] }
     }
     Functions: {
       create_movement: {

@@ -51,37 +51,31 @@ export default async function ObrasPage({ searchParams }: PageProps) {
 
   const supabase = await createClient()
 
-  const queries: [
-    ReturnType<typeof supabase.from>,
-    ReturnType<typeof supabase.from>,
-    ReturnType<typeof supabase.from> | null
-  ] = [
-    supabase
-      .from("locations")
-      .select("id, name")
-      .eq("type", "obra")
-      .eq("is_active", true)
-      .order("name"),
-    supabase
-      .from("movements")
-      .select(`
-        id,
-        created_at,
-        quantity,
-        unit_cost,
-        items!inner(name),
-        destination:destination_location_id(id, name),
-        source:source_movement_id(supplier, reference_number)
-      `)
-      .eq("type", "salida")
-      .not("destination_location_id", "is", null)
-      .gte("created_at", startDate)
-      .lt("created_at", endDate)
-      .order("created_at", { ascending: false }),
-    null,
-  ]
+  const locationsQuery = supabase
+    .from("locations")
+    .select("id, name")
+    .eq("type", "obra")
+    .eq("is_active", true)
+    .order("name")
 
-  const [{ data: obrasData }, { data: salidasData }] = await Promise.all([queries[0], queries[1]])
+  const movementsQuery = supabase
+    .from("movements")
+    .select(`
+      id,
+      created_at,
+      quantity,
+      unit_cost,
+      items!inner(name),
+      destination:destination_location_id(id, name),
+      source:source_movement_id(supplier, reference_number)
+    `)
+    .eq("type", "salida")
+    .not("destination_location_id", "is", null)
+    .gte("created_at", startDate)
+    .lt("created_at", endDate)
+    .order("created_at", { ascending: false })
+
+  const [{ data: obrasData }, { data: salidasData }] = await Promise.all([locationsQuery, movementsQuery])
 
   // Query tareas de la obra (solo cuando hay obraId seleccionado)
   let obraTasks: Task[] = []

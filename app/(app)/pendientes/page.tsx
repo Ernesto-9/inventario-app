@@ -19,11 +19,6 @@ interface PageProps {
   }>
 }
 
-function todayStr() {
-  const t = new Date()
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
-}
-
 export default async function PendientesPage({ searchParams }: PageProps) {
   const params = await searchParams
   const supabase = await createClient()
