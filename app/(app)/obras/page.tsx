@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server"
 import { MonthSelector } from "@/components/obras/MonthSelector"
 import { ObraSelector } from "@/components/obras/ObraSelector"
+import { ObraTasksSection } from "@/components/obras/ObraTasksSection"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
+import type { Task } from "@/types/database"
 
 interface PageProps {
   searchParams: Promise<{ mes?: string; obra?: string }>
@@ -49,7 +51,11 @@ export default async function ObrasPage({ searchParams }: PageProps) {
 
   const supabase = await createClient()
 
-  const [{ data: obrasData }, { data: salidasData }] = await Promise.all([
+  const queries: [
+    ReturnType<typeof supabase.from>,
+    ReturnType<typeof supabase.from>,
+    ReturnType<typeof supabase.from> | null
+  ] = [
     supabase
       .from("locations")
       .select("id, name")
@@ -72,7 +78,32 @@ export default async function ObrasPage({ searchParams }: PageProps) {
       .gte("created_at", startDate)
       .lt("created_at", endDate)
       .order("created_at", { ascending: false }),
-  ])
+    null,
+  ]
+
+  const [{ data: obrasData }, { data: salidasData }] = await Promise.all([queries[0], queries[1]])
+
+  // Query tareas de la obra (solo cuando hay obraId seleccionado)
+  let obraTasks: Task[] = []
+  if (obraId) {
+    const { data: tasksData } = await supabase
+      .from("tasks")
+      .select(`
+        *,
+        assigned_profile:profiles!assigned_to_profile(id, full_name, username),
+        assigned_external:external_actors!assigned_to_external(id, name, type),
+        location:locations!location_id(id, name, type),
+        subtasks:tasks!parent_task_id(
+          *,
+          assigned_profile:profiles!assigned_to_profile(id, full_name, username),
+          assigned_external:external_actors!assigned_to_external(id, name, type)
+        )
+      `)
+      .eq("location_id", obraId)
+      .is("parent_task_id", null)
+      .order("due_date", { ascending: true })
+    obraTasks = (tasksData ?? []) as Task[]
+  }
 
   const obras = (obrasData ?? []) as { id: string; name: string }[]
 
@@ -208,6 +239,11 @@ export default async function ObrasPage({ searchParams }: PageProps) {
           </table>
         </div>
       </div>
+
+      {/* Tareas de esta obra (solo cuando hay obra seleccionada) */}
+      {obraId && (
+        <ObraTasksSection tasks={obraTasks} obraId={obraId} />
+      )}
     </div>
   )
 }

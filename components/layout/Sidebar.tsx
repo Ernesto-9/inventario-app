@@ -20,6 +20,7 @@ import {
   Receipt,
   HardHat,
   Fuel,
+  CheckSquare,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
@@ -29,6 +30,7 @@ import type { UserRole } from "@/types/database"
 const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/movements/new", label: "Nuevo movimiento", icon: ArrowLeftRight, highlight: true },
+  { href: "/pendientes", label: "Pendientes", icon: CheckSquare, badge: true },
   { href: "/items", label: "Inventario", icon: Package },
   { href: "/locations", label: "Ubicaciones", icon: MapPin },
   { href: "/cash", label: "Caja chica", icon: Wallet },
@@ -47,9 +49,10 @@ const comprasNavItems = [
 
 interface SidebarProps {
   role: UserRole
+  overdueCount?: number
 }
 
-export function Sidebar({ role }: SidebarProps) {
+export function Sidebar({ role, overdueCount = 0 }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -72,8 +75,9 @@ export function Sidebar({ role }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 py-4 space-y-1 px-2">
-        {mainNavItems.map(({ href, label, icon: Icon, highlight }) => {
+        {mainNavItems.map(({ href, label, icon: Icon, highlight, badge }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href) && href !== "/movements/new")
+          const showBadge = badge && overdueCount > 0
           return (
             <Link
               key={href}
@@ -85,8 +89,13 @@ export function Sidebar({ role }: SidebarProps) {
                 !highlight && !active && "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
             >
-              <Icon className="h-4 w-4" />
-              {label}
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{label}</span>
+              {showBadge && (
+                <span className="flex items-center justify-center h-4 min-w-4 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
+                  {overdueCount > 99 ? "99+" : overdueCount}
+                </span>
+              )}
             </Link>
           )
         })}

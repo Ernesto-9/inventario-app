@@ -104,3 +104,18 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@media print {
+  * {
+    box-shadow: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .rounded-lg,
+  .rounded-md,
+  .border {
+    border-color: #ccc !important;
+  }
+}

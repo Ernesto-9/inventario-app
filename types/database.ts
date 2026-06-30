@@ -8,8 +8,66 @@ export interface Profile {
   full_name: string
   role: UserRole
   avatar_url: string | null
+  username: string | null
   created_at: string
   updated_at: string
+}
+
+export type TaskStatus = 'pendiente' | 'en_progreso' | 'completada' | 'vencida'
+export type TaskPriority = 'alta' | 'media' | 'baja'
+export type ExternalActorType = 'arquitecto' | 'contratista' | 'proveedor' | 'otro'
+
+export interface ExternalActor {
+  id: string
+  name: string
+  type: ExternalActorType
+  phone: string | null
+  company: string | null
+  notes: string | null
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+}
+
+export interface Task {
+  id: string
+  title: string
+  description: string | null
+  status: TaskStatus
+  priority: TaskPriority
+  due_date: string
+  assigned_to_profile: string | null
+  assigned_to_external: string | null
+  location_id: string | null
+  parent_task_id: string | null
+  created_by: string
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+  // joins
+  assigned_profile?: Pick<Profile, 'id' | 'full_name' | 'username'> | null
+  assigned_external?: Pick<ExternalActor, 'id' | 'name' | 'type'> | null
+  location?: Pick<Location, 'id' | 'name' | 'type'> | null
+  subtasks?: Task[]
+}
+
+export interface TaskHistory {
+  id: string
+  task_id: string
+  changed_by: string | null
+  field_changed: string | null
+  old_value: string | null
+  new_value: string | null
+  changed_at: string
+}
+
+export interface PushSubscriptionRow {
+  id: string
+  profile_id: string
+  endpoint: string
+  p256dh: string
+  auth: string
+  created_at: string
 }
 
 export interface Location {
@@ -302,6 +360,12 @@ export interface Database {
       stock_by_location: { Row: StockByLocation; Relationships: [] }
       supplier_item_history: { Row: SupplierItemHistory; Relationships: [] }
     }
+    Tables: {
+      tasks: { Row: Task; Insert: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'assigned_profile' | 'assigned_external' | 'location' | 'subtasks'>; Update: Partial<Task>; Relationships: [] }
+      external_actors: { Row: ExternalActor; Insert: Omit<ExternalActor, 'id' | 'created_at'>; Update: Partial<ExternalActor>; Relationships: [] }
+      task_history: { Row: TaskHistory; Insert: Omit<TaskHistory, 'id' | 'changed_at'>; Update: Partial<TaskHistory>; Relationships: [] }
+      push_subscriptions: { Row: PushSubscriptionRow; Insert: Omit<PushSubscriptionRow, 'id' | 'created_at'>; Update: Partial<PushSubscriptionRow>; Relationships: [] }
+    }
     Functions: {
       create_movement: {
         Args: {
@@ -320,6 +384,9 @@ export interface Database {
         Returns: string
       }
       get_my_role: { Args: Record<never, never>; Returns: UserRole }
+      get_my_username: { Args: Record<never, never>; Returns: string }
+      get_my_overdue_count: { Args: Record<never, never>; Returns: number }
+      mark_overdue_tasks: { Args: Record<never, never>; Returns: void }
       admin_clear_stock: {
         Args: { p_item_id: string; p_location_id: string }
         Returns: void
@@ -330,6 +397,8 @@ export interface Database {
       movement_type: MovementType
       user_role: UserRole
       attachment_type: AttachmentType
+      task_status: TaskStatus
+      task_priority: TaskPriority
     }
     CompositeTypes: {
       [_ in never]: never

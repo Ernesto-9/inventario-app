@@ -19,6 +19,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const role = (profile?.role ?? "supervisor") as UserRole
 
+  const { data: overdueCount } = await supabase.rpc("get_my_overdue_count")
+
   // Trabajadores ven un layout simple sin sidebar
   if (role === "trabajador") {
     return (
@@ -26,7 +28,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className="flex-1 flex flex-col min-w-0 pb-20">
           {children}
         </main>
-        <MobileNav role={role} />
+        <div className="print:hidden">
+          <MobileNav role={role} />
+        </div>
         <Toaster />
       </div>
     )
@@ -34,11 +38,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar role={role} />
+      <div className="print:hidden">
+        <Sidebar role={role} overdueCount={overdueCount ?? 0} />
+      </div>
       <main className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
         {children}
       </main>
-      <MobileNav role={role} />
+      <div className="print:hidden">
+        <MobileNav role={role} />
+      </div>
       <Toaster />
     </div>
   )
