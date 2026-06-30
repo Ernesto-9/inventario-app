@@ -95,8 +95,9 @@ export function PendientesClient({
     return groups
   }, [tasks])
 
-  // Para impresión: usar grupos de persona siempre
-  const printGroups = personGroups.map(g => ({ name: g.name, tasks: g.tasks }))
+  const printGroups = vista === 'obra'
+    ? obraGroups.map(g => ({ name: g.name, tasks: g.tasks }))
+    : personGroups.map(g => ({ name: g.name, tasks: g.tasks }))
 
   return (
     <div>

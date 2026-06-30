@@ -96,14 +96,21 @@ export function ExternalActorsManager({ actors: initial }: ExternalActorsManager
   }
 
   async function handleDeactivate(actor: ExternalActor) {
-    const res = await fetch(`/api/external-actors/${actor.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: !actor.is_active }),
-    })
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/external-actors/${actor.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: !actor.is_active }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setError(json?.error ?? 'No se pudo actualizar el actor')
+        return
+      }
       setActors(prev => prev.map(a => a.id === actor.id ? { ...a, is_active: !actor.is_active } : a))
       router.refresh()
+    } catch {
+      setError('Error de conexión, intenta de nuevo')
     }
   }
 

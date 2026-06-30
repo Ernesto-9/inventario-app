@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { StatusBadge } from './StatusBadge'
 import { PriorityBadge } from './PriorityBadge'
 import { useRouter } from 'next/navigation'
+import { toast } from '@/hooks/use-toast'
 import type { Task } from '@/types/database'
 
 function isOverdue(task: Task): boolean {
@@ -29,13 +30,23 @@ export function TaskRow({ task, compact = false }: { task: Task; compact?: boole
 
   async function handleComplete() {
     setCompleting(true)
-    await fetch(`/api/tasks/${task.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'completada' }),
-    })
-    router.refresh()
-    setCompleting(false)
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completada' }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        toast({ title: 'Error', description: json?.error ?? 'No se pudo completar la tarea', variant: 'destructive' })
+        return
+      }
+      router.refresh()
+    } catch {
+      toast({ title: 'Error', description: 'Error de conexión, intenta de nuevo', variant: 'destructive' })
+    } finally {
+      setCompleting(false)
+    }
   }
 
   return (

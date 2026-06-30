@@ -81,18 +81,60 @@ create or replace function check_task_depth()
 returns trigger as $$
 begin
   if new.parent_task_id is not null then
+    -- el padre ya es subtarea → profundidad hacia arriba
     perform 1 from tasks where id = new.parent_task_id and parent_task_id is not null;
     if found then
       raise exception 'Sub-subtareas no permitidas: solo se permite un nivel de profundidad';
     end if;
+    -- esta tarea ya tiene hijos → profundidad hacia abajo
+    perform 1 from tasks where parent_task_id = new.id;
+    if found then
+      raise exception 'Esta tarea ya tiene subtareas: no puede convertirse en subtarea';
+    end if;
   end if;
   return new;
 end;
-$$ language plpgsql;
+$$ language plpgsql security definer;
 
 create trigger trg_tasks_no_subsubtask
   before insert or update on tasks
   for each row execute function check_task_depth();
+
+-- trigger: enforce column-level business rules en UPDATE (defensa en profundidad vs bypass de API)
+create or replace function enforce_task_update_rules()
+returns trigger as $$
+declare
+  v_role text;
+  v_username text;
+begin
+  select role, username into v_role, v_username from profiles where id = auth.uid();
+
+  if v_role = 'admin' then
+    return new;
+  end if;
+
+  if new.due_date is distinct from old.due_date then
+    raise exception 'Solo admin puede cambiar la fecha límite';
+  end if;
+
+  if new.status is distinct from old.status and old.assigned_to_external is not null and v_username <> '002' then
+    raise exception 'Solo el perfil 002 puede actualizar el progreso de tareas de externos';
+  end if;
+
+  if new.assigned_to_profile is distinct from old.assigned_to_profile
+     or new.assigned_to_external is distinct from old.assigned_to_external
+     or new.parent_task_id is distinct from old.parent_task_id
+     or new.created_by is distinct from old.created_by then
+    raise exception 'No tienes permiso para reasignar o mover esta tarea';
+  end if;
+
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger trg_tasks_enforce_update_rules
+  before update on tasks
+  for each row execute function enforce_task_update_rules();
 
 -- función para marcar vencidas (agendada en Fase 5)
 create or replace function mark_overdue_tasks()
@@ -184,13 +226,24 @@ create policy "tasks_update" on tasks
 create policy "tasks_delete" on tasks
   for delete to authenticated using (get_my_role() = 'admin');
 
--- task_history
+-- task_history: solo accesible para tareas que el usuario puede ver
+create or replace function can_see_task(p_task_id uuid)
+returns boolean as $$
+  select exists (
+    select 1 from tasks t
+    where t.id = p_task_id
+      and (
+        get_my_role() = 'admin'
+        or t.assigned_to_profile = auth.uid()
+        or (get_my_username() = '004' and t.assigned_to_profile = (select id from profiles where username = '001'))
+      )
+  )
+$$ language sql security definer stable;
+
 create policy "th_select" on task_history
-  for select to authenticated using (
-    exists (select 1 from tasks t where t.id = task_history.task_id)
-  );
+  for select to authenticated using (can_see_task(task_id));
 create policy "th_insert" on task_history
-  for insert to authenticated with check (changed_by = auth.uid());
+  for insert to authenticated with check (changed_by = auth.uid() and can_see_task(task_id));
 
 -- push_subscriptions
 create policy "ps_select" on push_subscriptions

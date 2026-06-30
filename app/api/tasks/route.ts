@@ -43,7 +43,10 @@ export async function POST(req: Request) {
       .select('parent_task_id')
       .eq('id', data.parent_task_id)
       .single()
-    if (parentTask?.parent_task_id) {
+    if (!parentTask) {
+      return NextResponse.json({ error: 'Tarea padre no encontrada' }, { status: 404 })
+    }
+    if (parentTask.parent_task_id) {
       return NextResponse.json({ error: 'Sub-subtareas no permitidas (máximo 1 nivel)' }, { status: 400 })
     }
   }
@@ -53,6 +56,9 @@ export async function POST(req: Request) {
 
   // Validar asignación según rol/username
   if (profile.role !== 'admin') {
+    if (assignedExternal) {
+      return NextResponse.json({ error: 'Solo admin puede asignar tareas a un actor externo' }, { status: 403 })
+    }
     if (profile.username === '003' || profile.username === '005') {
       if (assignedProfile && assignedProfile !== user.id) {
         return NextResponse.json({ error: 'Solo puedes asignarte tareas a ti mismo' }, { status: 403 })
