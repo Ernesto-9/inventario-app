@@ -62,6 +62,14 @@ El layout llama `get_my_overdue_count()` (RPC) y pasa el conteo al Sidebar. El c
 ## Migraciones
 1. `20260615210000_add_profile_username.sql` — aplicada en Supabase 2026-06-30
 2. `20260615210100_tasks_module.sql` — aplicada en Supabase 2026-06-30
+3. `20260630180000_add_trabajador_role.sql` — aplicada 2026-06-30 (el enum nunca tuvo
+   `trabajador` en prod pese a existir en `0003_purchase_orders.sql`)
+4. `20260630180100_fix_profile_roles_data.sql` — aplicada 2026-06-30 (001 estaba en
+   `supervisor` en vez de `admin`; 005 en `supervisor` en vez de `trabajador`)
+5. `20260630180200_fix_tasks_004_visibility.sql` — aplicada 2026-06-30 (004 no podía
+   ver/crear tareas de 001: la policy de `tasks` resolvía el id de 001 con una
+   subconsulta a `profiles` que la RLS de `profiles` bloqueaba para no-admins;
+   se agregó `get_profile_id_by_username()` security definer)
 
 ## Fase 5 — Push notifications (NO implementada)
 Requiere: `web-push`, claves VAPID (5 vars en Vercel), service worker `public/sw.js`, íconos PNG.
