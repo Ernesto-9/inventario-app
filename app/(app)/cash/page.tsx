@@ -75,7 +75,7 @@ function buildCycles(transactions: CashTransaction[]): CycleData[] {
     const remaining = available - totalSpent
 
     cycles.push({ deposit, gastos, startDate: deposit.created_at, endDate: nextDeposit?.created_at ?? null, carryover, totalSpent, available, remaining })
-    carryover = 0
+    carryover = remaining
   }
 
   return cycles.reverse()
@@ -239,6 +239,15 @@ export default function CashPage() {
         <td></td>
         <td style="text-align:right">${fmt(runningBalance)}</td>
       </tr>`)
+    } else if (cycle.carryover < 0) {
+      runningBalance += cycle.carryover
+      printRows.push(`<tr>
+        <td>${fmtDate(cycle.startDate, { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+        <td>Déficit ciclo anterior (cubierto por empleado)</td><td></td><td></td>
+        <td></td>
+        <td style="text-align:right;color:#dc2626">${fmt(Math.abs(cycle.carryover))}</td>
+        <td style="text-align:right">${fmt(runningBalance)}</td>
+      </tr>`)
     }
 
     runningBalance += cycle.deposit.amount
@@ -332,7 +341,8 @@ export default function CashPage() {
         <div className="flex flex-wrap gap-3">
           {[
             { label: 'Reposición', value: fmt(cycle.deposit.amount), color: '' },
-            ...(cycle.carryover > 0 ? [{ label: '+ Saldo anterior', value: fmt(cycle.carryover), color: '' }] : []),
+            ...(cycle.carryover > 0 ? [{ label: '+ Saldo anterior', value: fmt(cycle.carryover), color: 'text-green-600' }] : []),
+            ...(cycle.carryover < 0 ? [{ label: '− Cubre déficit anterior', value: fmt(Math.abs(cycle.carryover)), color: 'text-red-500' }] : []),
             { label: 'Disponible', value: fmt(cycle.available), color: '' },
             { label: 'Gastado', value: fmt(cycle.totalSpent), color: 'text-red-500' },
             { label: 'Restante', value: fmt(cycle.remaining), color: cycle.remaining >= 0 ? 'text-green-600' : 'text-red-500' },
@@ -459,7 +469,8 @@ export default function CashPage() {
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                       <span>Reposición: <strong className="text-foreground">{fmt(cycle.deposit.amount)}</strong></span>
-                      {cycle.carryover > 0 && <span>+ Anterior: <strong className="text-foreground">{fmt(cycle.carryover)}</strong></span>}
+                      {cycle.carryover > 0 && <span>+ Anterior: <strong className="text-green-600">{fmt(cycle.carryover)}</strong></span>}
+                      {cycle.carryover < 0 && <span>− Déficit cubierto: <strong className="text-red-500">{fmt(Math.abs(cycle.carryover))}</strong></span>}
                       <span>Gastado: <strong className="text-red-500">{fmt(cycle.totalSpent)}</strong></span>
                       <span>Restante: <strong className={cycle.remaining >= 0 ? 'text-green-600' : 'text-red-500'}>{fmt(cycle.remaining)}</strong></span>
                     </div>
